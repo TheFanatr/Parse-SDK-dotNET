@@ -34,8 +34,8 @@ namespace Parse.Core.Internal
                 value is ParseRelationBase ||
                 value is DateTime ||
                 value is byte[] ||
-                Conversion.As<IDictionary<string, object>>(value) != null ||
-                Conversion.As<IList<object>>(value) != null;
+                ConversionHelpers.DowncastReference<IDictionary<string, object>>(value) != null ||
+                ConversionHelpers.DowncastReference<IList<object>>(value) != null;
         }
 
         public object Encode(object value)
@@ -71,7 +71,7 @@ namespace Parse.Core.Internal
                 return jsonConvertible.ToJSON();
             }
 
-            var dict = Conversion.As<IDictionary<string, object>>(value);
+            var dict = ConversionHelpers.DowncastReference<IDictionary<string, object>>(value);
             if (dict != null)
             {
                 var json = new Dictionary<string, object>();
@@ -82,7 +82,7 @@ namespace Parse.Core.Internal
                 return json;
             }
 
-            var list = Conversion.As<IList<object>>(value);
+            var list = ConversionHelpers.DowncastReference<IList<object>>(value);
             if (list != null)
             {
                 return EncodeList(list);

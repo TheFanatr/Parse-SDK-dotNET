@@ -37,7 +37,7 @@ namespace Parse.Core.Internal
             if (previous is ParseSetOperation)
             {
                 var setOp = (ParseSetOperation) previous;
-                var oldList = Conversion.To<IList<object>>(setOp.Value);
+                var oldList = ConversionHelpers.DowncastValue<IList<object>>(setOp.Value);
                 var result = this.Apply(oldList, null);
                 return new ParseSetOperation(result);
             }
@@ -55,7 +55,7 @@ namespace Parse.Core.Internal
             {
                 return objects.ToList();
             }
-            var newList = Conversion.To<IList<object>>(oldValue).ToList();
+            var newList = ConversionHelpers.DowncastValue<IList<object>>(oldValue).ToList();
             var comparer = ParseFieldOperations.ParseObjectComparer;
             foreach (var objToAdd in objects)
             {

@@ -14,9 +14,9 @@ namespace Parse.Test
         struct DummyValueTypeB { }
 
         [TestMethod]
-        public void TestToWithConstructedNullablePrimitive() => Assert.IsTrue(Conversion.To<int?>((double) 4) is int?);
+        public void TestToWithConstructedNullablePrimitive() => Assert.IsTrue(ConversionHelpers.DowncastValue<int?>((double) 4) is int?);
 
         [TestMethod]
-        public void TestToWithConstructedNullableNonPrimitive() => Assert.ThrowsException<InvalidCastException>(() => Conversion.To<DummyValueTypeA?>(new DummyValueTypeB { }));
+        public void TestToWithConstructedNullableNonPrimitive() => Assert.ThrowsException<InvalidCastException>(() => ConversionHelpers.DowncastValue<DummyValueTypeA?>(new DummyValueTypeB { }));
     }
 }

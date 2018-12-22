@@ -190,7 +190,7 @@ namespace Parse.Core.Internal
                     return;
                 }
 
-                var resultsArray = Conversion.As<IList<object>>(t.Result.Item2["results"]);
+                var resultsArray = ConversionHelpers.DowncastReference<IList<object>>(t.Result.Item2["results"]);
                 int resultLength = resultsArray.Count;
                 if (resultLength != batchSize)
                 {

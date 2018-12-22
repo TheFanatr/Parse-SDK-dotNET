@@ -30,7 +30,7 @@ namespace Parse
         [ParseFieldName("sessionToken")]
         public string SessionToken
         {
-            get { return GetProperty<string>(null, "SessionToken"); }
+            get { return GetProperty<string>("SessionToken", null); }
         }
 
         /// <summary>
@@ -97,18 +97,6 @@ namespace Parse
             return SessionController.RevokeAsync(sessionToken, cancellationToken);
         }
 
-        internal static Task<string> UpgradeToRevocableSessionAsync(string sessionToken, CancellationToken cancellationToken)
-        {
-            if (sessionToken == null || SessionController.IsRevocableSessionToken(sessionToken))
-            {
-                return Task<string>.FromResult(sessionToken);
-            }
-
-            return SessionController.UpgradeToRevocableSessionAsync(sessionToken, cancellationToken).OnSuccess(t =>
-            {
-                ParseSession session = ParseObject.FromState<ParseSession>(t.Result, "_Session");
-                return session.SessionToken;
-            });
-        }
+        internal static Task<string> UpgradeToRevocableSessionAsync(string sessionToken, CancellationToken cancellationToken) => sessionToken is null || SessionController.IsRevocableSessionToken(sessionToken) ? Task.FromResult(sessionToken) : SessionController.UpgradeToRevocableSessionAsync(sessionToken, cancellationToken).OnSuccess(t => FromState<ParseSession>(t.Result, "_Session").SessionToken);
     }
 }

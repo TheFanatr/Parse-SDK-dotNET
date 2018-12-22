@@ -67,8 +67,8 @@ namespace Parse.Core.Internal
 
                 if (typeString == "GeoPoint")
                 {
-                    return new ParseGeoPoint(Conversion.To<double>(dict["latitude"]),
-                        Conversion.To<double>(dict["longitude"]));
+                    return new ParseGeoPoint(ConversionHelpers.DowncastValue<double>(dict["latitude"]),
+                        ConversionHelpers.DowncastValue<double>(dict["longitude"]));
                 }
 
                 if (typeString == "Object")

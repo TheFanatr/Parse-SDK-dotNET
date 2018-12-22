@@ -37,7 +37,7 @@ namespace Parse.Core.Internal
             if (previous is ParseSetOperation)
             {
                 var setOp = (ParseSetOperation) previous;
-                var oldList = Conversion.To<IList<object>>(setOp.Value);
+                var oldList = ConversionHelpers.DowncastValue<IList<object>>(setOp.Value);
                 return new ParseSetOperation(oldList.Concat(objects).ToList());
             }
             if (previous is ParseAddOperation)
@@ -53,7 +53,7 @@ namespace Parse.Core.Internal
             {
                 return objects.ToList();
             }
-            var oldList = Conversion.To<IList<object>>(oldValue);
+            var oldList = ConversionHelpers.DowncastValue<IList<object>>(oldValue);
             return oldList.Concat(objects).ToList();
         }
 

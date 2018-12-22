@@ -9,7 +9,7 @@ namespace Parse.Utilities
     /// <summary>
     /// A set of utilities for converting generic types between each other.
     /// </summary>
-    public static class Conversion
+    public static class ConversionHelpers
     {
         /// <summary>
         /// Converts a value to the requested type -- coercing primitives to
@@ -21,7 +21,7 @@ namespace Parse.Utilities
         /// JSON deserialization can be safely assumed to be lists or dictionaries of
         /// objects.
         /// </summary>
-        public static T As<T>(object value) where T : class => ConvertTo<T>(value) as T;
+        public static T DowncastReference<T>(object value) where T : class => Downcast<T>(value) as T;
 
         /// <summary>
         /// Converts a value to the requested type -- coercing primitives to
@@ -33,7 +33,7 @@ namespace Parse.Utilities
         /// JSON deserialization can be safely assumed to be lists or dictionaries of
         /// objects.
         /// </summary>
-        public static T To<T>(object value) => (T) ConvertTo<T>(value);
+        public static T DowncastValue<T>(object value) => (T) Downcast<T>(value);
 
         /// <summary>
         /// Converts a value to the requested type -- coercing primitives to
@@ -45,17 +45,13 @@ namespace Parse.Utilities
         /// JSON deserialization can be safely assumed to be lists or dictionaries of
         /// objects.
         /// </summary>
-        internal static object ConvertTo<T>(object value)
+        internal static object Downcast<T>(object value)
         {
-            if (value is T || value == null)
-            {
+            if (value is T || value is null)
                 return value;
-            }
 
             if (ReflectionHelpers.IsPrimitive(typeof(T)))
-            {
                 return (T) Convert.ChangeType(value, typeof(T));
-            }
 
             if (ReflectionHelpers.IsConstructedGenericType(typeof(T)))
             {
@@ -64,27 +60,14 @@ namespace Parse.Utilities
                 {
                     Type innerType = ReflectionHelpers.GetGenericTypeArguments(typeof(T))[0];
                     if (ReflectionHelpers.IsPrimitive(innerType))
-                    {
                         return (T) Convert.ChangeType(value, innerType);
-                    }
                 }
-                Type listType = GetInterfaceType(value.GetType(), typeof(IList<>));
-                if (listType != null &&
-                    typeof(T).GetGenericTypeDefinition() == typeof(IList<>))
-                {
-                    Type wrapperType = typeof(FlexibleListWrapper<,>)
-                      .MakeGenericType(ReflectionHelpers.GetGenericTypeArguments(typeof(T))[0],
-                                       ReflectionHelpers.GetGenericTypeArguments(listType)[0]);
-                    return Activator.CreateInstance(wrapperType, value);
-                }
-                Type dictType = GetInterfaceType(value.GetType(), typeof(IDictionary<,>));
-                if (dictType != null && typeof(T).GetGenericTypeDefinition() == typeof(IDictionary<,>))
-                {
-                    Type wrapperType = typeof(FlexibleDictionaryWrapper<,>)
-                      .MakeGenericType(ReflectionHelpers.GetGenericTypeArguments(typeof(T))[1],
-                                       ReflectionHelpers.GetGenericTypeArguments(dictType)[1]);
-                    return Activator.CreateInstance(wrapperType, value);
-                }
+                
+                if (GetInterfaceType(value.GetType(), typeof(IList<>)) is Type listType && typeof(T).GetGenericTypeDefinition() == typeof(IList<>))
+                    return Activator.CreateInstance(typeof(FlexibleListWrapper<,>).MakeGenericType(ReflectionHelpers.GetGenericTypeArguments(typeof(T))[0], ReflectionHelpers.GetGenericTypeArguments(listType)[0]), value);
+
+                if (GetInterfaceType(value.GetType(), typeof(IDictionary<,>)) is Type dictType && typeof(T).GetGenericTypeDefinition() == typeof(IDictionary<,>))
+                    return Activator.CreateInstance(typeof(FlexibleDictionaryWrapper<,>).MakeGenericType(ReflectionHelpers.GetGenericTypeArguments(typeof(T))[1], ReflectionHelpers.GetGenericTypeArguments(dictType)[1]), value);
             }
 
             return value;
@@ -103,16 +86,14 @@ namespace Parse.Utilities
         private static Type GetInterfaceType(Type objType, Type genericInterfaceType)
         {
             Tuple<Type, Type> cacheKey = new Tuple<Type, Type>(objType, genericInterfaceType);
+
             if (interfaceLookupCache.ContainsKey(cacheKey))
-            {
                 return interfaceLookupCache[cacheKey];
-            }
+
             foreach (Type type in ReflectionHelpers.GetInterfaces(objType))
             {
                 if (ReflectionHelpers.IsConstructedGenericType(type) && type.GetGenericTypeDefinition() == genericInterfaceType)
-                {
                     return interfaceLookupCache[cacheKey] = type;
-                }
             }
             return null;
         }

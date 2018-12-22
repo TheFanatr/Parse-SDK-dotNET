@@ -31,34 +31,32 @@ namespace Parse
     /// </remarks>
     public class ParseObject : IEnumerable<KeyValuePair<string, object>>, INotifyPropertyChanged
     {
-        private static readonly string AutoClassName = "_Automatic";
+        bool _IsDirty = default;
 
-        private static readonly bool isCompiledByIL2CPP = false;
+        const string AutoClassName = "_Automatic";
 
-        internal readonly object mutex = new object();
+        internal object Mutex { get; } = new object { };
 
-        private readonly LinkedList<IDictionary<string, IParseFieldOperation>> operationSetQueue = new LinkedList<IDictionary<string, IParseFieldOperation>>();
-        private readonly IDictionary<string, object> estimatedData = new Dictionary<string, object>();
+        LinkedList<IDictionary<string, IParseFieldOperation>> OperationSetQueue { get; } = new LinkedList<IDictionary<string, IParseFieldOperation>> { };
 
-        private static readonly ThreadLocal<bool> isCreatingPointer = new ThreadLocal<bool>(() => false);
+        IDictionary<string, object> EstimatedData { get; } = new Dictionary<string, object> { };
 
-        private bool hasBeenFetched;
-        private bool dirty;
-        internal TaskQueue taskQueue = new TaskQueue();
+        static ThreadLocal<bool> IsCreatingPointer { get; } = new ThreadLocal<bool>(() => false);
 
-        private IObjectState state;
+        bool Fetched { get; set; }
+
+        internal TaskQueue Queue { get; set; } = new TaskQueue { };
+
         internal void MutateState(Action<MutableObjectState> func)
         {
-            lock (mutex)
+            lock (Mutex)
             {
-                state = state.MutatedClone(func);
-
-                // Refresh the estimated data.
+                State = State.MutatedClone(func);
                 RebuildEstimatedData();
             }
         }
 
-        internal IObjectState State => state;
+        internal IObjectState State { get; private set; }
 
         internal static IParseObjectController ObjectController => ParseCorePlugins.Instance.ObjectController;
 
@@ -87,8 +85,11 @@ namespace Parse
             // right thing with subclasses. It's ugly and terrible, but it does provide the development
             // experience we generally want, so... yeah. Sorry to whomever has to deal with this in the
             // future. I pinky-swear we won't make a habit of this -- you believe me, don't you?
-            var isPointer = isCreatingPointer.Value;
-            isCreatingPointer.Value = false;
+
+            // Ahh that's a meme bud.
+
+            bool isPointer = IsCreatingPointer.Value;
+            IsCreatingPointer.Value = false;
 
             if (className == null)
                 throw new ArgumentException("You must specify a Parse class name when creating a new ParseObject.");
@@ -97,20 +98,20 @@ namespace Parse
             // If this is supposed to be created by a factory but wasn't, throw an exception
             if (!SubclassingController.IsTypeValid(className, GetType()))
                 throw new ArgumentException("You must create this type of ParseObject using ParseObject.Create() or the proper subclass.");
-            state = new MutableObjectState { ClassName = className };
+            State = new MutableObjectState { ClassName = className };
             OnPropertyChanged("ClassName");
 
-            operationSetQueue.AddLast(new Dictionary<string, IParseFieldOperation>());
+            OperationSetQueue.AddLast(new Dictionary<string, IParseFieldOperation>());
             if (!isPointer)
             {
-                hasBeenFetched = true;
+                Fetched = true;
                 IsDirty = true;
                 SetDefaultValues();
             }
             else
             {
                 IsDirty = false;
-                hasBeenFetched = false;
+                Fetched = false;
             }
         }
 
@@ -124,7 +125,7 @@ namespace Parse
 
         /// <summary>
         /// Creates a reference to an existing ParseObject for use in creating associations between
-        /// ParseObjects. Calling <see cref="ParseObject.IsDataAvailable"/> on this object will return
+        /// ParseObjects. Calling <see cref="IsDataAvailable"/> on this object will return
         /// <c>false</c> until <see cref="ParseExtensions.FetchIfNeededAsync{T}(T)"/> has been called.
         /// No network request will be made.
         /// </summary>
@@ -133,15 +134,15 @@ namespace Parse
         /// <returns>A ParseObject without data.</returns>
         public static ParseObject CreateWithoutData(string className, string objectId)
         {
-            isCreatingPointer.Value = true;
+            IsCreatingPointer.Value = true;
             try
             {
-                var result = SubclassingController.Instantiate(className);
+                ParseObject result = SubclassingController.Instantiate(className);
                 result.ObjectId = objectId;
                 result.IsDirty = false; // Left in because the property setter might be doing something funky.
                 return result.IsDirty ? throw new InvalidOperationException("A ParseObject subclass default constructor must not make changes to the object that cause it to be dirty.") : result;
             }
-            finally { isCreatingPointer.Value = false; }
+            finally { IsCreatingPointer.Value = false; }
         }
 
         /// <summary>
@@ -193,17 +194,9 @@ namespace Parse
         /// </summary>
         /// <returns>The value of the property.</returns>
         /// <param name="propertyName">The name of the property.</param>
-        /// <typeparam name="T">The return type of the property.</typeparam>
-        protected T GetProperty<T>([CallerMemberName] string propertyName = null) => GetProperty(default(T), propertyName);
-
-        /// <summary>
-        /// Gets the value of a property based upon its associated ParseFieldName attribute.
-        /// </summary>
-        /// <returns>The value of the property.</returns>
         /// <param name="defaultValue">The value to return if the property is not present on the ParseObject.</param>
-        /// <param name="propertyName">The name of the property.</param>
         /// <typeparam name="T">The return type of the property.</typeparam>
-        protected T GetProperty<T>(T defaultValue, [CallerMemberName] string propertyName = null) => TryGetValue(GetFieldForPropertyName(ClassName, propertyName), out T result) ? result : defaultValue;
+        protected T GetProperty<T>([CallerMemberName] string propertyName = null, T defaultValue = default) => TryGetValue(GetFieldForPropertyName(ClassName, propertyName), out T result) ? result : defaultValue;
 
         /// <summary>
         /// Allows subclasses to set values for non-pointer construction.
@@ -225,7 +218,7 @@ namespace Parse
         /// </summary>
         public void Revert()
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 bool wasDirty = CurrentOperations.Count > 0;
                 if (wasDirty)
@@ -239,7 +232,7 @@ namespace Parse
 
         internal virtual void HandleFetchResult(IObjectState serverState)
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 MergeFromServer(serverState);
             }
@@ -247,22 +240,17 @@ namespace Parse
 
         internal void HandleFailedSave(IDictionary<string, IParseFieldOperation> operationsBeforeSave)
         {
-            lock (mutex)
+            lock (Mutex)
             {
-                var opNode = operationSetQueue.Find(operationsBeforeSave);
-                var nextOperations = opNode.Next.Value;
+                LinkedListNode<IDictionary<string, IParseFieldOperation>> opNode = OperationSetQueue.Find(operationsBeforeSave);
+                IDictionary<string, IParseFieldOperation> nextOperations = opNode.Next.Value;
                 bool wasDirty = nextOperations.Count > 0;
-                operationSetQueue.Remove(opNode);
+                OperationSetQueue.Remove(opNode);
                 // Merge the data from the failed save into the next save.
-                foreach (var pair in operationsBeforeSave)
+                foreach (KeyValuePair<string, IParseFieldOperation> pair in operationsBeforeSave)
                 {
-                    var operation1 = pair.Value;
                     nextOperations.TryGetValue(pair.Key, out IParseFieldOperation operation2);
-                    if (operation2 != null)
-                        operation2 = operation2.MergeWithPrevious(operation1);
-                    else
-                        operation2 = operation1;
-                    nextOperations[pair.Key] = operation2;
+                    nextOperations[pair.Key] = operation2?.MergeWithPrevious(pair.Value) ?? pair.Value;
                 }
                 if (!wasDirty && nextOperations == CurrentOperations && operationsBeforeSave.Count > 0)
                     OnPropertyChanged("IsDirty");
@@ -271,10 +259,10 @@ namespace Parse
 
         internal virtual void HandleSave(IObjectState serverState)
         {
-            lock (mutex)
+            lock (Mutex)
             {
-                var operationsBeforeSave = operationSetQueue.First.Value;
-                operationSetQueue.RemoveFirst();
+                IDictionary<string, IParseFieldOperation> operationsBeforeSave = OperationSetQueue.First.Value;
+                OperationSetQueue.RemoveFirst();
 
                 // Merge the data from the save and the data from the server into serverData.
                 MutateState(mutableClone => mutableClone.Apply(operationsBeforeSave));
@@ -285,15 +273,15 @@ namespace Parse
         internal virtual void MergeFromServer(IObjectState serverState)
         {
             // Make a new serverData with fetched values.
-            var newServerData = serverState.ToDictionary(t => t.Key, t => t.Value);
+            Dictionary<string, object> newServerData = serverState.ToDictionary(t => t.Key, t => t.Value);
 
-            lock (mutex)
+            lock (Mutex)
             {
                 // Trigger handler based on serverState
                 if (serverState.ObjectId != null)
                 {
                     // If the objectId is being merged in, consider this object to be fetched.
-                    hasBeenFetched = true;
+                    Fetched = true;
                     OnPropertyChanged("IsDataAvailable");
                 }
                 if (serverState.UpdatedAt != null)
@@ -303,15 +291,15 @@ namespace Parse
 
                 // We cache the fetched object because subsequent Save operation might flush
                 // the fetched objects into Pointers.
-                IDictionary<string, ParseObject> fetchedObject = CollectFetchedObjects();
+                IDictionary<string, ParseObject> fetchedObject = DeepTraversal(EstimatedData).OfType<ParseObject>().Where(o => o.ObjectId != null && o.IsDataAvailable).GroupBy(o => o.ObjectId).ToDictionary(group => group.Key, group => group.Last());
 
-                foreach (var pair in serverState)
+                foreach (KeyValuePair<string, object> pair in serverState)
                 {
-                    var value = pair.Value;
+                    object value = pair.Value;
                     if (value is ParseObject)
                     {
                         // Resolve fetched object.
-                        var parseObject = value as ParseObject;
+                        ParseObject parseObject = value as ParseObject;
                         if (fetchedObject.ContainsKey(parseObject.ObjectId))
                             value = fetchedObject[parseObject.ObjectId];
                     }
@@ -327,19 +315,19 @@ namespace Parse
         internal void MergeFromObject(ParseObject other)
         {
             // If they point to the same instance, we don't need to merge
-            lock (mutex)
+            lock (Mutex)
                 if (this == other)
                     return;
 
             // Clear out any changes on this object.
-            if (operationSetQueue.Count != 1)
+            if (OperationSetQueue.Count != 1)
                 throw new InvalidOperationException("Attempt to MergeFromObject during save.");
-            operationSetQueue.Clear();
-            foreach (var operationSet in other.operationSetQueue)
-                operationSetQueue.AddLast(operationSet.ToDictionary(entry => entry.Key, entry => entry.Value));
+            OperationSetQueue.Clear();
+            foreach (IDictionary<string, IParseFieldOperation> operationSet in other.OperationSetQueue)
+                OperationSetQueue.AddLast(operationSet.ToDictionary(entry => entry.Key, entry => entry.Value));
 
-            lock (mutex)
-                state = other.State;
+            lock (Mutex)
+                State = other.State;
             RebuildEstimatedData();
         }
 
@@ -347,8 +335,8 @@ namespace Parse
         {
             get
             {
-                lock (mutex)
-                    return FindUnsavedChildren().FirstOrDefault() != null;
+                lock (Mutex)
+                    return DeepTraversal(EstimatedData).OfType<ParseObject>().Where(o => o.IsDirty).FirstOrDefault() != null;
             }
         }
 
@@ -362,73 +350,51 @@ namespace Parse
         /// <returns></returns>
         internal static IEnumerable<object> DeepTraversal(object root, bool traverseParseObjects = false, bool yieldRoot = false)
         {
-            var items = DeepTraversalInternal(root, traverseParseObjects, new HashSet<object>(new IdentityEqualityComparer<object>()));
-            if (yieldRoot)
-                return new[] { root }.Concat(items);
-            else
-                return items;
-        }
+            IEnumerable<object> items = DeepTraversalInternal(root, new HashSet<object>(new IdentityEqualityComparer<object> { }));
+            return yieldRoot ? new[] { root }.Concat(items) : items;
 
-        private static IEnumerable<object> DeepTraversalInternal(object root, bool traverseParseObjects, ICollection<object> seen)
-        {
-            seen.Add(root);
-            var itemsToVisit = isCompiledByIL2CPP ? (System.Collections.IEnumerable) null : (IEnumerable<object>) null;
-            var dict = Conversion.As<IDictionary<string, object>>(root);
-            if (dict != null)
+            IEnumerable<object> DeepTraversalInternal(object internalRoot, ICollection<object> seen)
             {
-                itemsToVisit = dict.Values;
-            }
-            else
-            {
-                var list = Conversion.As<IList<object>>(root);
-                if (list != null)
+                seen.Add(internalRoot);
+                System.Collections.IEnumerable itemsToVisit = null;
+
+                IDictionary<string, object> dict = ConversionHelpers.DowncastReference<IDictionary<string, object>>(internalRoot);
+                if (dict != null)
+                    itemsToVisit = dict.Values;
+                else
                 {
-                    itemsToVisit = list;
+                    IList<object> list = ConversionHelpers.DowncastReference<IList<object>>(internalRoot);
+
+                    if (list != null)
+                        itemsToVisit = list;
+                    else if (traverseParseObjects && internalRoot is ParseObject obj)
+                            itemsToVisit = obj.Keys.ToList().Select(k => obj[k]);
                 }
-                else if (traverseParseObjects)
+                if (itemsToVisit != null)
                 {
-                    if (root is ParseObject obj)
+                    foreach (object i in itemsToVisit)
                     {
-                        itemsToVisit = obj.Keys.ToList().Select(k => obj[k]);
-                    }
-                }
-            }
-            if (itemsToVisit != null)
-            {
-                foreach (var i in itemsToVisit)
-                {
-                    if (!seen.Contains(i))
-                    {
-                        yield return i;
-                        var children = DeepTraversalInternal(i, traverseParseObjects, seen);
-                        foreach (var child in children)
+                        if (!seen.Contains(i))
                         {
-                            yield return child;
+                            yield return i;
+
+                            foreach (object child in DeepTraversalInternal(i, seen))
+                                yield return child;
                         }
                     }
                 }
             }
         }
 
-        private IEnumerable<ParseObject> FindUnsavedChildren() => DeepTraversal(estimatedData).OfType<ParseObject>().Where(o => o.IsDirty);
-
-        /// <summary>
-        /// Deep traversal of this object to grab a copy of any object referenced by this object.
-        /// These instances may have already been fetched, and we don't want to lose their data when
-        /// refreshing or saving.
-        /// </summary>
-        /// <returns>Map of objectId to ParseObject which have been fetched.</returns>
-        private IDictionary<string, ParseObject> CollectFetchedObjects() => DeepTraversal(estimatedData).OfType<ParseObject>().Where(o => o.ObjectId != null && o.IsDataAvailable).GroupBy(o => o.ObjectId).ToDictionary(group => group.Key, group => group.Last());
-
         internal static IDictionary<string, object> ToJSONObjectForSaving(IDictionary<string, IParseFieldOperation> operations)
         {
-            var result = new Dictionary<string, object>();
-            foreach (var pair in operations)
+            Dictionary<string, object> result = new Dictionary<string, object> { };
+            foreach (KeyValuePair<string, IParseFieldOperation> pair in operations)
                 result[pair.Key] = PointerOrLocalIdEncoder.Instance.Encode(pair.Value);
             return result;
         }
 
-        internal IDictionary<string, object> ServerDataToJSONObjectForSerialization() => PointerOrLocalIdEncoder.Instance.Encode(state.ToDictionary(t => t.Key, t => t.Value)) as IDictionary<string, object>;
+        internal IDictionary<string, object> ServerDataToJSONObjectForSerialization() => PointerOrLocalIdEncoder.Instance.Encode(State.ToDictionary(t => t.Key, t => t.Value)) as IDictionary<string, object>;
 
         #region Save Object(s)
 
@@ -437,10 +403,10 @@ namespace Parse
         /// </summary>
         internal IDictionary<string, IParseFieldOperation> StartSave()
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 var currentOperations = CurrentOperations;
-                operationSetQueue.AddLast(new Dictionary<string, IParseFieldOperation>());
+                OperationSetQueue.AddLast(new Dictionary<string, IParseFieldOperation>());
                 OnPropertyChanged("IsDirty");
                 return currentOperations;
             }
@@ -454,17 +420,17 @@ namespace Parse
 
             Task deepSaveTask;
             string sessionToken;
-            lock (mutex)
+            lock (Mutex)
             {
                 // Get the JSON representation of the object.
                 currentOperations = StartSave();
 
                 sessionToken = ParseUser.CurrentSessionToken;
 
-                deepSaveTask = DeepSaveAsync(estimatedData, sessionToken, cancellationToken);
+                deepSaveTask = DeepSaveAsync(EstimatedData, sessionToken, cancellationToken);
             }
 
-            return deepSaveTask.OnSuccess(_ => toAwait).Unwrap().OnSuccess(_ => ObjectController.SaveAsync(state, currentOperations, sessionToken, cancellationToken)).Unwrap().ContinueWith(t =>
+            return deepSaveTask.OnSuccess(_ => toAwait).Unwrap().OnSuccess(_ => ObjectController.SaveAsync(State, currentOperations, sessionToken, cancellationToken)).Unwrap().ContinueWith(t =>
             {
                 if (t.IsFaulted || t.IsCanceled)
                     HandleFailedSave(currentOperations);
@@ -483,9 +449,9 @@ namespace Parse
         /// Saves this object to the server.
         /// </summary>
         /// <param name="cancellationToken">The cancellation token.</param>
-        public Task SaveAsync(CancellationToken cancellationToken) => taskQueue.Enqueue(toAwait => SaveAsync(toAwait, cancellationToken), cancellationToken);
+        public Task SaveAsync(CancellationToken cancellationToken) => Queue.Enqueue(toAwait => SaveAsync(toAwait, cancellationToken), cancellationToken);
 
-        internal virtual Task<ParseObject> FetchAsyncInternal(Task toAwait, CancellationToken cancellationToken) => toAwait.OnSuccess(_ => ObjectId == null ? throw new InvalidOperationException("Cannot refresh an object that hasn't been saved to the server.") : ObjectController.FetchAsync(state, ParseUser.CurrentSessionToken, cancellationToken)).Unwrap().OnSuccess(t =>
+        internal virtual Task<ParseObject> FetchAsyncInternal(Task toAwait, CancellationToken cancellationToken) => toAwait.OnSuccess(_ => ObjectId == null ? throw new InvalidOperationException("Cannot refresh an object that hasn't been saved to the server.") : ObjectController.FetchAsync(State, ParseUser.CurrentSessionToken, cancellationToken)).Unwrap().OnSuccess(t =>
         {
             HandleFetchResult(t.Result);
             return this;
@@ -526,7 +492,7 @@ namespace Parse
                         return toAwait.OnSuccess(__ =>
                         {
                             var states = (from item in current
-                                          select item.state).ToList();
+                                          select item.State).ToList();
                             var operationsList = (from item in current
                                                   select item.StartSave()).ToList();
 
@@ -588,7 +554,7 @@ namespace Parse
         /// <param name="cancellationToken">The cancellation token.</param>
         internal Task<ParseObject> FetchAsyncInternal(CancellationToken cancellationToken)
         {
-            return taskQueue.Enqueue(toAwait => FetchAsyncInternal(toAwait, cancellationToken),
+            return Queue.Enqueue(toAwait => FetchAsyncInternal(toAwait, cancellationToken),
                 cancellationToken);
         }
 
@@ -609,7 +575,7 @@ namespace Parse
         /// <param name="cancellationToken">The cancellation token.</param>
         internal Task<ParseObject> FetchIfNeededAsyncInternal(CancellationToken cancellationToken)
         {
-            return taskQueue.Enqueue(toAwait => FetchIfNeededAsyncInternal(toAwait, cancellationToken),
+            return Queue.Enqueue(toAwait => FetchIfNeededAsyncInternal(toAwait, cancellationToken),
               cancellationToken);
         }
 
@@ -677,7 +643,7 @@ namespace Parse
         {
             return toAwait.OnSuccess(_ =>
             {
-                if (objects.Any(obj => { return obj.state.ObjectId == null; }))
+                if (objects.Any(obj => { return obj.State.ObjectId == null; }))
                 {
                     throw new InvalidOperationException("You cannot fetch objects that haven't already been saved.");
                 }
@@ -720,7 +686,7 @@ namespace Parse
                     foreach (var pair in pairs)
                     {
                         pair.obj.MergeFromObject(pair.result);
-                        pair.obj.hasBeenFetched = true;
+                        pair.obj.Fetched = true;
                     }
 
                     return objects;
@@ -761,7 +727,7 @@ namespace Parse
         /// <param name="cancellationToken">The cancellation token.</param>
         public Task DeleteAsync(CancellationToken cancellationToken)
         {
-            return taskQueue.Enqueue(toAwait => DeleteAsync(toAwait, cancellationToken),
+            return Queue.Enqueue(toAwait => DeleteAsync(toAwait, cancellationToken),
               cancellationToken);
         }
 
@@ -787,7 +753,7 @@ namespace Parse
 
             return ParseObject.EnqueueForAll<object>(uniqueObjects, toAwait =>
             {
-                var states = uniqueObjects.Select(t => t.state).ToList();
+                var states = uniqueObjects.Select(t => t.State).ToList();
                 return toAwait.OnSuccess(_ =>
                 {
                     var deleteTasks = ObjectController.DeleteAllAsync(states,
@@ -810,27 +776,22 @@ namespace Parse
 
         #endregion
 
-        private static void CollectDirtyChildren(object node,
-            IList<ParseObject> dirtyChildren,
-            ICollection<ParseObject> seen,
-            ICollection<ParseObject> seenNew)
+        static void CollectDirtyChildren(object node, IList<ParseObject> dirtyChildren, ICollection<ParseObject> seen, ICollection<ParseObject> seenNew)
         {
-            foreach (var obj in DeepTraversal(node).OfType<ParseObject>())
+            foreach (ParseObject obj in DeepTraversal(node).OfType<ParseObject>())
             {
                 ICollection<ParseObject> scopedSeenNew;
                 // Check for cycles of new objects. Any such cycle means it will be impossible to save
                 // this collection of objects, so throw an exception.
                 if (obj.ObjectId != null)
                 {
-                    scopedSeenNew = new HashSet<ParseObject>(new IdentityEqualityComparer<ParseObject>());
+                    scopedSeenNew = new HashSet<ParseObject>(new IdentityEqualityComparer<ParseObject> { });
                 }
                 else
                 {
                     if (seenNew.Contains(obj))
-                    {
                         throw new InvalidOperationException("Found a circular dependency while saving");
-                    }
-                    scopedSeenNew = new HashSet<ParseObject>(seenNew, new IdentityEqualityComparer<ParseObject>()) { obj };
+                    scopedSeenNew = new HashSet<ParseObject>(seenNew, new IdentityEqualityComparer<ParseObject> { }) { obj };
                 }
 
                 // Check for cycles of any object. If this occurs, then there's no problem, but
@@ -844,7 +805,7 @@ namespace Parse
                 // Recurse into this object's children looking for dirty children.
                 // We only need to look at the child object's current estimated data,
                 // because that's the only data that might need to be saved now.
-                CollectDirtyChildren(obj.estimatedData, dirtyChildren, seen, scopedSeenNew);
+                CollectDirtyChildren(obj.EstimatedData, dirtyChildren, seen, scopedSeenNew);
 
                 if (obj.CheckIsDirty(false))
                 {
@@ -857,7 +818,7 @@ namespace Parse
         /// Helper version of CollectDirtyChildren so that callers don't have to add the internally
         /// used parameters.
         /// </summary>
-        private static void CollectDirtyChildren(object node, IList<ParseObject> dirtyChildren)
+        static void CollectDirtyChildren(object node, IList<ParseObject> dirtyChildren)
         {
             CollectDirtyChildren(node,
                 dirtyChildren,
@@ -884,9 +845,9 @@ namespace Parse
                 // and when saving children automatically. Since it's only used to
                 // determine whether or not save should be called on them, it only
                 // needs to examine their current values, so we use estimatedData.
-                lock (mutex)
+                lock (Mutex)
                 {
-                    return CanBeSerializedAsValue(estimatedData);
+                    return CanBeSerializedAsValue(EstimatedData);
                 }
             }
         }
@@ -905,7 +866,7 @@ namespace Parse
             // that saves actually get executed in the order they were setup by taskStart().
             // The locks have to be sorted so that we always acquire them in the same order.
             // Otherwise, there's some risk of deadlock.
-            var lockSet = new LockSet(objects.Select(o => o.taskQueue.Mutex));
+            var lockSet = new LockSet(objects.Select(o => o.Queue.Mutex));
 
             lockSet.Enter();
             try
@@ -919,7 +880,7 @@ namespace Parse
                 var childTasks = new List<Task>();
                 foreach (ParseObject obj in objects)
                 {
-                    obj.taskQueue.Enqueue((Task task) =>
+                    obj.Queue.Enqueue((Task task) =>
                     {
                         childTasks.Add(task);
                         return fullTask;
@@ -946,7 +907,7 @@ namespace Parse
         /// <param name="key">The key to remove.</param>
         public virtual void Remove(string key)
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 CheckKeyIsMutable(key);
 
@@ -959,7 +920,7 @@ namespace Parse
             IParseFieldOperation> operations,
             IDictionary<string, object> map)
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 foreach (var pair in operations)
                 {
@@ -982,16 +943,16 @@ namespace Parse
         /// </summary>
         internal void RebuildEstimatedData()
         {
-            lock (mutex)
+            lock (Mutex)
             {
-                estimatedData.Clear();
-                foreach (var item in state)
+                EstimatedData.Clear();
+                foreach (var item in State)
                 {
-                    estimatedData.Add(item);
+                    EstimatedData.Add(item);
                 }
-                foreach (var operations in operationSetQueue)
+                foreach (var operations in OperationSetQueue)
                 {
-                    ApplyOperations(operations, estimatedData);
+                    ApplyOperations(operations, EstimatedData);
                 }
                 // We've just applied a bunch of operations to estimatedData which
                 // may have changed all of its keys. Notify of all keys and properties
@@ -1006,17 +967,17 @@ namespace Parse
         /// </summary>
         internal void PerformOperation(string key, IParseFieldOperation operation)
         {
-            lock (mutex)
+            lock (Mutex)
             {
-                estimatedData.TryGetValue(key, out object oldValue);
+                EstimatedData.TryGetValue(key, out object oldValue);
                 object newValue = operation.Apply(oldValue, key);
                 if (newValue != ParseDeleteOperation.DeleteToken)
                 {
-                    estimatedData[key] = newValue;
+                    EstimatedData[key] = newValue;
                 }
                 else
                 {
-                    estimatedData.Remove(key);
+                    EstimatedData.Remove(key);
                 }
 
                 bool wasDirty = CurrentOperations.Count > 0;
@@ -1057,11 +1018,11 @@ namespace Parse
         {
             get
             {
-                lock (mutex)
+                lock (Mutex)
                 {
                     CheckGetAccess(key);
 
-                    var value = estimatedData[key];
+                    var value = EstimatedData[key];
 
                     // A relation may be deserialized without a parent or key. Either way,
                     // make sure it's consistent.
@@ -1075,7 +1036,7 @@ namespace Parse
             }
             set
             {
-                lock (mutex)
+                lock (Mutex)
                 {
                     CheckKeyIsMutable(key);
 
@@ -1091,7 +1052,7 @@ namespace Parse
         /// <param name="value">the value for the key.</param>
         internal void Set(string key, object value)
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 OnSettingValue(ref key, ref value);
 
@@ -1139,7 +1100,7 @@ namespace Parse
         /// <param name="amount">The amount to increment by.</param>
         public void Increment(string key, long amount)
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 CheckKeyIsMutable(key);
 
@@ -1154,7 +1115,7 @@ namespace Parse
         /// <param name="amount">The amount to increment by.</param>
         public void Increment(string key, double amount)
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 CheckKeyIsMutable(key);
 
@@ -1181,7 +1142,7 @@ namespace Parse
         /// <param name="values">The objects to add.</param>
         public void AddRangeToList<T>(string key, IEnumerable<T> values)
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 CheckKeyIsMutable(key);
 
@@ -1210,7 +1171,7 @@ namespace Parse
         /// <param name="values">The objects to add.</param>
         public void AddRangeUniqueToList<T>(string key, IEnumerable<T> values)
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 CheckKeyIsMutable(key);
 
@@ -1226,7 +1187,7 @@ namespace Parse
         /// <param name="values">The objects to remove.</param>
         public void RemoveAllFromList<T>(string key, IEnumerable<T> values)
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 CheckKeyIsMutable(key);
 
@@ -1240,9 +1201,9 @@ namespace Parse
         /// <param name="key">The key to check for</param>
         public bool ContainsKey(string key)
         {
-            lock (mutex)
+            lock (Mutex)
             {
-                return estimatedData.ContainsKey(key);
+                return EstimatedData.ContainsKey(key);
             }
         }
 
@@ -1257,7 +1218,7 @@ namespace Parse
         /// </summary>
         public T Get<T>(string key)
         {
-            return Conversion.To<T>(this[key]);
+            return ConversionHelpers.DowncastValue<T>(this[key]);
         }
 
         /// <summary>
@@ -1284,13 +1245,13 @@ namespace Parse
         /// false.</returns>
         public bool TryGetValue<T>(string key, out T result)
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 if (ContainsKey(key))
                 {
                     try
                     {
-                        var temp = Conversion.To<T>(this[key]);
+                        var temp = ConversionHelpers.DowncastValue<T>(this[key]);
                         result = temp;
                         return true;
                     }
@@ -1312,24 +1273,24 @@ namespace Parse
         {
             get
             {
-                lock (mutex)
+                lock (Mutex)
                 {
-                    return hasBeenFetched;
+                    return Fetched;
                 }
             }
         }
 
         private bool CheckIsDataAvailable(string key)
         {
-            lock (mutex)
+            lock (Mutex)
             {
-                return IsDataAvailable || estimatedData.ContainsKey(key);
+                return IsDataAvailable || EstimatedData.ContainsKey(key);
             }
         }
 
         private void CheckGetAccess(string key)
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 if (!CheckIsDataAvailable(key))
                 {
@@ -1359,7 +1320,7 @@ namespace Parse
         /// </summary>
         public bool HasSameId(ParseObject other)
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 return other != null &&
                     Equals(ClassName, other.ClassName) &&
@@ -1371,9 +1332,9 @@ namespace Parse
         {
             get
             {
-                lock (mutex)
+                lock (Mutex)
                 {
-                    return operationSetQueue.Last.Value;
+                    return OperationSetQueue.Last.Value;
                 }
             }
         }
@@ -1386,9 +1347,9 @@ namespace Parse
         {
             get
             {
-                lock (mutex)
+                lock (Mutex)
                 {
-                    return estimatedData.Keys;
+                    return EstimatedData.Keys;
                 }
             }
         }
@@ -1399,7 +1360,7 @@ namespace Parse
         [ParseFieldName("ACL")]
         public ParseACL ACL
         {
-            get { return GetProperty<ParseACL>(null, "ACL"); }
+            get { return GetProperty<ParseACL>("ACL", null); }
             set { SetProperty(value, "ACL"); }
         }
 
@@ -1417,7 +1378,7 @@ namespace Parse
         {
             get
             {
-                return state.IsNew;
+                return State.IsNew;
             }
 #if !UNITY
             internal
@@ -1443,7 +1404,7 @@ namespace Parse
         {
             get
             {
-                return state.UpdatedAt;
+                return State.UpdatedAt;
             }
         }
 
@@ -1458,7 +1419,7 @@ namespace Parse
         {
             get
             {
-                return state.CreatedAt;
+                return State.CreatedAt;
             }
         }
 
@@ -1469,14 +1430,14 @@ namespace Parse
         {
             get
             {
-                lock (mutex)
-                { return CheckIsDirty(true); }
+                lock (Mutex)
+                    return CheckIsDirty(true);
             }
             internal set
             {
-                lock (mutex)
+                lock (Mutex)
                 {
-                    dirty = value;
+                    _IsDirty = value;
                     OnPropertyChanged("IsDirty");
                 }
             }
@@ -1490,7 +1451,7 @@ namespace Parse
         /// <c>false</c>.</returns>
         public bool IsKeyDirty(string key)
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 return CurrentOperations.ContainsKey(key);
             }
@@ -1498,9 +1459,9 @@ namespace Parse
 
         private bool CheckIsDirty(bool considerChildren)
         {
-            lock (mutex)
+            lock (Mutex)
             {
-                return (dirty || CurrentOperations.Count > 0 || (considerChildren && HasDirtyChildren));
+                return (_IsDirty || CurrentOperations.Count > 0 || (considerChildren && HasDirtyChildren));
             }
         }
 
@@ -1514,7 +1475,7 @@ namespace Parse
         {
             get
             {
-                return state.ObjectId;
+                return State.ObjectId;
             }
             set
             {
@@ -1528,7 +1489,7 @@ namespace Parse
         /// <param name="objectId">The new objectId</param>
         private void SetObjectIdInternal(string objectId)
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 MutateState(mutableClone =>
                 {
@@ -1545,7 +1506,7 @@ namespace Parse
         {
             get
             {
-                return state.ClassName;
+                return State.ClassName;
             }
         }
 
@@ -1569,7 +1530,7 @@ namespace Parse
         /// <param name="value">The value for the key.</param>
         public void Add(string key, object value)
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 if (this.ContainsKey(key))
                 {
@@ -1582,15 +1543,15 @@ namespace Parse
         IEnumerator<KeyValuePair<string, object>> IEnumerable<KeyValuePair<string, object>>
             .GetEnumerator()
         {
-            lock (mutex)
+            lock (Mutex)
             {
-                return estimatedData.GetEnumerator();
+                return EstimatedData.GetEnumerator();
             }
         }
 
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 return ((IEnumerable<KeyValuePair<string, object>>) this).GetEnumerator();
             }

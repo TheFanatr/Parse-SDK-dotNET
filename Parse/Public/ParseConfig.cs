@@ -91,7 +91,7 @@ namespace Parse
         /// key was found, but of a different type.</exception>
         public T Get<T>(string key)
         {
-            return Conversion.To<T>(this.properties[key]);
+            return ConversionHelpers.DowncastValue<T>(this.properties[key]);
         }
 
         /// <summary>
@@ -108,7 +108,7 @@ namespace Parse
             {
                 try
                 {
-                    var temp = Conversion.To<T>(this.properties[key]);
+                    var temp = ConversionHelpers.DowncastValue<T>(this.properties[key]);
                     result = temp;
                     return true;
                 }

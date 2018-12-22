@@ -268,13 +268,13 @@ namespace Parse
                 var configuration = ParseClient.CurrentConfiguration;
 
                 // 'this' is required in order for the extension method to be used.
-                this.SetIfDifferent("deviceType", DeviceInfoController.DeviceType);
-                this.SetIfDifferent("timeZone", DeviceInfoController.DeviceTimeZone);
-                this.SetIfDifferent("localeIdentifier", GetLocaleIdentifier());
-                this.SetIfDifferent("parseVersion", GetParseVersion().ToString());
-                this.SetIfDifferent("appVersion", configuration.VersionInfo.BuildVersion ?? DeviceInfoController.AppBuildVersion);
-                this.SetIfDifferent("appIdentifier", DeviceInfoController.AppIdentifier);
-                this.SetIfDifferent("appName", DeviceInfoController.AppName);
+                SetIfDifferent("deviceType", DeviceInfoController.DeviceType);
+                SetIfDifferent("timeZone", DeviceInfoController.DeviceTimeZone);
+                SetIfDifferent("localeIdentifier", GetLocaleIdentifier());
+                SetIfDifferent("parseVersion", GetParseVersion().ToString());
+                SetIfDifferent("appVersion", configuration.VersionInfo.BuildVersion ?? DeviceInfoController.AppBuildVersion);
+                SetIfDifferent("appIdentifier", DeviceInfoController.AppIdentifier);
+                SetIfDifferent("appName", DeviceInfoController.AppName);
 
                 platformHookTask = DeviceInfoController.ExecuteParseInstallationSaveHookAsync(this);
             }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -18,29 +18,27 @@ namespace AssemblyLister
             get
             {
                 // For each of the loaded assemblies, deeply walk all of their references.
-                HashSet<string> seen = new HashSet<string>();
+                HashSet<string> seen = new HashSet<string> { };
                 return AppDomain.CurrentDomain.GetAssemblies().SelectMany(asm => asm.DeepWalkReferences(seen));
             }
         }
 
         private static IEnumerable<Assembly> DeepWalkReferences(this Assembly assembly, HashSet<string> seen = null)
         {
-            seen = seen ?? new HashSet<string>();
+            if (seen is null)
+                seen = new HashSet<string> { };
 
             if (!seen.Add(assembly.FullName))
-            {
                 return Enumerable.Empty<Assembly>();
-            }
 
             List<Assembly> assemblies = new List<Assembly> { assembly };
 
-            foreach (var reference in assembly.GetReferencedAssemblies())
+            foreach (AssemblyName reference in assembly.GetReferencedAssemblies())
             {
                 if (seen.Contains(reference.FullName))
                     continue;
 
-                Assembly referencedAsm = Assembly.Load(reference);
-                assemblies.AddRange(referencedAsm.DeepWalkReferences(seen));
+                assemblies.AddRange(Assembly.Load(reference).DeepWalkReferences(seen));
             }
 
             return assemblies;

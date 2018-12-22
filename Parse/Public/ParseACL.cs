@@ -22,9 +22,12 @@ namespace Parse
             Read,
             Write
         }
+
         private const string publicName = "*";
-        private readonly ICollection<string> readers = new HashSet<string>();
-        private readonly ICollection<string> writers = new HashSet<string>();
+
+        private readonly ICollection<string> readers = new HashSet<string> { };
+
+        private readonly ICollection<string> writers = new HashSet<string> { };
 
         internal ParseACL(IDictionary<string, object> jsonObject)
         {
@@ -39,9 +42,7 @@ namespace Parse
         /// <summary>
         /// Creates an ACL with no permissions granted.
         /// </summary>
-        public ParseACL()
-        {
-        }
+        public ParseACL() { }
 
         /// <summary>
         /// Creates an ACL where only the provided user has access.
@@ -55,30 +56,30 @@ namespace Parse
 
         IDictionary<string, object> IJsonConvertible.ToJSON()
         {
-            Dictionary<string, object> result = new Dictionary<string, object>();
+            Dictionary<string, object> result = new Dictionary<string, object> { };
+
             foreach (string user in readers.Union(writers))
             {
-                Dictionary<string, object> userPermissions = new Dictionary<string, object>();
+                Dictionary<string, object> userPermissions = new Dictionary<string, object> { };
+
                 if (readers.Contains(user))
-                {
                     userPermissions["read"] = true;
-                }
                 if (writers.Contains(user))
-                {
                     userPermissions["write"] = true;
-                }
+
                 result[user] = userPermissions;
             }
+
             return result;
         }
 
         private void SetAccess(AccessKind kind, string userId, bool allowed)
         {
             if (userId == null)
-            {
                 throw new ArgumentException("Cannot set access for an unsaved user or role.");
-            }
+
             ICollection<string> target = null;
+
             switch (kind)
             {
                 case AccessKind.Read:
@@ -90,22 +91,18 @@ namespace Parse
                 default:
                     throw new NotImplementedException("Unknown AccessKind");
             }
+
             if (allowed)
-            {
                 target.Add(userId);
-            }
             else
-            {
                 target.Remove(userId);
-            }
         }
 
         private bool GetAccess(AccessKind kind, string userId)
         {
             if (userId == null)
-            {
                 throw new ArgumentException("Cannot get access for an unsaved user or role.");
-            }
+
             switch (kind)
             {
                 case AccessKind.Read:

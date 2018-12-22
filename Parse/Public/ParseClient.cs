@@ -19,14 +19,10 @@ namespace Parse
     {
         internal static readonly string[] DateFormatStrings =
         {
-            // Official ISO format
+            // It's possible that the string converter server-side may trim trailing zeroes, so the extra format strings provide addition protection.
             "yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fff'Z'",
-
-            // It's possible that the string converter server-side may trim trailing zeroes,
-            // so these two formats cover ourselves from that.
             "yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'ff'Z'",
             "yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'f'Z'",
-
         };
 
         /// <summary>
@@ -173,11 +169,7 @@ namespace Parse
             /// <summary>
             /// The Master Key for the Parse app targeted by <see cref="ApplicationID"/>.
             /// </summary>
-            public string MasterKey
-            {
-                get => AuxiliaryHeaders?["X-Parse-Master-Key"];
-                set => (AuxiliaryHeaders ?? (AuxiliaryHeaders = new Dictionary<string, string> { }))["X-Parse-Master-Key"] = value;
-            }
+            public string MasterKey { get; set; }
 
             /// <summary>
             /// Additional HTTP headers to be sent with network requests from the SDK.
@@ -205,9 +197,9 @@ namespace Parse
         /// The current configuration that parse has been initialized with.
         /// </summary>
         public static Configuration CurrentConfiguration { get; internal set; }
-        internal static string MasterKey { get; set; }
 
         internal static Version Version => new AssemblyName(typeof(ParseClient).GetTypeInfo().Assembly.FullName).Version;
+
         internal static string VersionString { get; }
 
         /// <summary>
@@ -235,8 +227,7 @@ namespace Parse
             lock (mutex)
             {
                 configuration.ServerURI = configuration.ServerURI ?? "https://api.parse.com/1/";
-                //if (configuration.Server == null || configuration.Server.Length < 11) throw new ArgumentNullException("Since the official parse server has shut down, you must specify the URI that points to another implementation.");
-
+                
                 switch (configuration.VersionInfo)
                 {
                     case Configuration.VersionInformation info when info.CanBeUsedForInference:

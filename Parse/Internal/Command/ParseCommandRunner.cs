@@ -120,9 +120,9 @@ namespace Parse.Core.Internal
 
             // TODO (richardross): I hate the idea of having this super tightly coupled static variable in here.
             // Lets eventually get rid of it.
-            if (!String.IsNullOrEmpty(ParseClient.MasterKey))
+            if (!String.IsNullOrEmpty(configuration.MasterKey))
             {
-                newCommand.Headers.Add(new KeyValuePair<string, string>("X-Parse-Master-Key", ParseClient.MasterKey));
+                newCommand.Headers.Add(new KeyValuePair<string, string>("X-Parse-Master-Key", configuration.MasterKey));
             }
             else
             {

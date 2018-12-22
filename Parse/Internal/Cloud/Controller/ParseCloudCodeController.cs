@@ -35,7 +35,7 @@ namespace Parse.Core.Internal
                 {
                     return default(T);
                 }
-                return Conversion.To<T>(decoded["result"]);
+                return ConversionHelpers.DowncastValue<T>(decoded["result"]);
             });
         }
     }

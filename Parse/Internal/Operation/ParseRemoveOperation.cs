@@ -38,7 +38,7 @@ namespace Parse.Core.Internal
             if (previous is ParseSetOperation)
             {
                 var setOp = (ParseSetOperation) previous;
-                var oldList = Conversion.As<IList<object>>(setOp.Value);
+                var oldList = ConversionHelpers.DowncastReference<IList<object>>(setOp.Value);
                 return new ParseSetOperation(this.Apply(oldList, null));
             }
             if (previous is ParseRemoveOperation)
@@ -55,7 +55,7 @@ namespace Parse.Core.Internal
             {
                 return new List<object>();
             }
-            var oldList = Conversion.As<IList<object>>(oldValue);
+            var oldList = ConversionHelpers.DowncastReference<IList<object>>(oldValue);
             return oldList.Except(objects, ParseFieldOperations.ParseObjectComparer).ToList();
         }
 
