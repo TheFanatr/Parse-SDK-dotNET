@@ -17,7 +17,6 @@ namespace Parse.Common.Internal
         /// just complete normally/immediately when their turn arrives.
         /// </summary>
         private Task tail;
-        private readonly object mutex = new object();
 
         /// <summary>
         /// Gets a cancellable task that can be safely awaited and is dependent
@@ -31,7 +30,7 @@ namespace Parse.Common.Internal
         /// <returns>A new task that should be awaited by enqueued tasks.</returns>
         private Task GetTaskToAwait(CancellationToken cancellationToken)
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 Task toAwait = tail ?? Task.FromResult(true);
                 return toAwait.ContinueWith(task => { }, cancellationToken);
@@ -54,7 +53,7 @@ namespace Parse.Common.Internal
         {
             Task oldTail;
             T task;
-            lock (mutex)
+            lock (Mutex)
             {
                 oldTail = tail ?? Task.FromResult(true);
                 // The task created by taskStart is responsible for waiting the
@@ -70,6 +69,6 @@ namespace Parse.Common.Internal
             return task;
         }
 
-        public object Mutex => mutex;
+        public object Mutex { get; } = new object();
     }
 }
