@@ -23,7 +23,7 @@ namespace Parse.Core.Internal
                 return null;
             }
 
-            var dict = data as IDictionary<string, object>;
+            IDictionary<string, object> dict = data as IDictionary<string, object>;
             if (dict != null)
             {
                 if (dict.ContainsKey("__op"))
@@ -31,14 +31,12 @@ namespace Parse.Core.Internal
                     return ParseFieldOperations.Decode(dict);
                 }
 
-                object type;
-                dict.TryGetValue("__type", out type);
-                var typeString = type as string;
+                dict.TryGetValue("__type", out object type);
 
-                if (typeString == null)
+                if (!(type is string typeString))
                 {
-                    var newDict = new Dictionary<string, object>();
-                    foreach (var pair in dict)
+                    Dictionary<string, object> newDict = new Dictionary<string, object>();
+                    foreach (KeyValuePair<string, object> pair in dict)
                     {
                         newDict[pair.Key] = Decode(pair.Value);
                     }
@@ -73,7 +71,7 @@ namespace Parse.Core.Internal
 
                 if (typeString == "Object")
                 {
-                    var state = ParseObjectCoder.Instance.Decode(dict, this);
+                    IObjectState state = ParseObjectCoder.Instance.Decode(dict, this);
                     return ParseObject.FromState<ParseObject>(state, dict["className"] as string);
                 }
 
@@ -82,8 +80,8 @@ namespace Parse.Core.Internal
                     return ParseRelationBase.CreateRelation(null, null, dict["className"] as string);
                 }
 
-                var converted = new Dictionary<string, object>();
-                foreach (var pair in dict)
+                Dictionary<string, object> converted = new Dictionary<string, object>();
+                foreach (KeyValuePair<string, object> pair in dict)
                 {
                     converted[pair.Key] = Decode(pair.Value);
                 }
