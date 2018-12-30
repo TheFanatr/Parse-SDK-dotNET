@@ -6,9 +6,6 @@ using AssemblyLister;
 
 namespace Parse.Common.Internal
 {
-    /// <summary>
-    /// The class which controls the loading of other ParseModules
-    /// </summary>
     public class ParseModuleController
     {
         public static ParseModuleController Instance { get; } = new ParseModuleController();
@@ -22,9 +19,7 @@ namespace Parse.Common.Internal
         public void RegisterModule(IParseModule module)
         {
             if (module == null)
-            {
                 return;
-            }
 
             lock (Mutex)
             {

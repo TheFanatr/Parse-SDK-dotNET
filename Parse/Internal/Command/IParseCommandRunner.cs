@@ -10,17 +10,6 @@ namespace Parse.Core.Internal
 {
     public interface IParseCommandRunner
     {
-        /// <summary>
-        /// Executes <see cref="ParseCommand"/> and convert the result into Dictionary.
-        /// </summary>
-        /// <param name="command">The command to be run.</param>
-        /// <param name="uploadProgress">Upload progress callback.</param>
-        /// <param name="downloadProgress">Download progress callback.</param>
-        /// <param name="cancellationToken">The cancellation token for the request.</param>
-        /// <returns></returns>
-        Task<Tuple<HttpStatusCode, IDictionary<string, object>>> RunCommandAsync(ParseCommand command,
-            IProgress<ParseUploadProgressEventArgs> uploadProgress = null,
-            IProgress<ParseDownloadProgressEventArgs> downloadProgress = null,
-            CancellationToken cancellationToken = default(CancellationToken));
+        Task<Tuple<HttpStatusCode, IDictionary<string, object>>> RunCommandAsync(ParseCommand command, IProgress<ParseUploadProgressEventArgs> uploadProgress = null, IProgress<ParseDownloadProgressEventArgs> downloadProgress = null, CancellationToken cancellationToken = default(CancellationToken));
     }
 }

@@ -8,29 +8,30 @@ namespace Parse.Common.Internal
 {
     public class LockSet
     {
-        private static readonly ConditionalWeakTable<object, IComparable> stableIds = new ConditionalWeakTable<object, IComparable>();
-        private static long nextStableId = 0;
+        static ConditionalWeakTable<object, IComparable> StableIdentifiers = new ConditionalWeakTable<object, IComparable> { };
 
-        private readonly IEnumerable<object> mutexes;
+        static long nextStableId { get; set; } = 0;
 
-        public LockSet(IEnumerable<object> mutexes) => this.mutexes = (from mutex in mutexes orderby GetStableId(mutex) select mutex).ToList();
+        IEnumerable<object> Mutexes { get; }
+
+        public LockSet(IEnumerable<object> mutexes) => Mutexes = (from mutex in mutexes orderby GetStableId(mutex) select mutex).ToList();
 
         public void Enter()
         {
-            foreach (object mutex in mutexes)
+            foreach (object mutex in Mutexes)
                 Monitor.Enter(mutex);
         }
 
         public void Exit()
         {
-            foreach (object mutex in mutexes)
+            foreach (object mutex in Mutexes)
                 Monitor.Exit(mutex);
         }
 
         private static IComparable GetStableId(object mutex)
         {
-            lock (stableIds)
-                return stableIds.GetValue(mutex, k => nextStableId++);
+            lock (StableIdentifiers)
+                return StableIdentifiers.GetValue(mutex, k => nextStableId++);
         }
     }
 }

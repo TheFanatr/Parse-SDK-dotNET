@@ -1,82 +1,67 @@
-// Copyright (c) 2015-present, Parse, LLC.  All rights reserved.  This source code is licensed under the BSD-style license found in the LICENSE file in the root directory of this source tree.  An additional grant of patent rights can be found in the PATENTS file in the same directory.
-
-using System;
 using Parse.Core.Internal;
 
 namespace Parse.Analytics.Internal
 {
     public class ParseAnalyticsPlugins : IParseAnalyticsPlugins
     {
-        private static readonly object instanceMutex = new object();
-        private static IParseAnalyticsPlugins instance;
+        static object InstanceMutex { get; } = new object { };
+
+        object Mutex { get; } = new object { };
+
+        public void Reset()
+        {
+            lock (Mutex)
+            {
+                CorePlugins = null;
+                Controller = null;
+            }
+        }
+
+        static IParseAnalyticsPlugins _Instance;
+
         public static IParseAnalyticsPlugins Instance
         {
             get
             {
-                lock (instanceMutex)
-                {
-                    instance = instance ?? new ParseAnalyticsPlugins();
-                    return instance;
-                }
+                lock (InstanceMutex)
+                    return _Instance = _Instance ?? new ParseAnalyticsPlugins { };
             }
             set
             {
-                lock (instanceMutex)
-                {
-                    instance = value;
-                }
+                lock (InstanceMutex)
+                    _Instance = value;
             }
         }
 
-        private readonly object mutex = new object();
-
-        private IParseCorePlugins corePlugins;
-        private IParseAnalyticsController analyticsController;
-
-        public void Reset()
-        {
-            lock (mutex)
-            {
-                CorePlugins = null;
-                AnalyticsController = null;
-            }
-        }
+        IParseCorePlugins _CorePlugins;
 
         public IParseCorePlugins CorePlugins
         {
             get
             {
-                lock (mutex)
-                {
-                    corePlugins = corePlugins ?? ParseCorePlugins.Instance;
-                    return corePlugins;
-                }
+                lock (Mutex)
+                    return _CorePlugins = _CorePlugins ?? ParseCorePlugins.Instance;
             }
             set
             {
-                lock (mutex)
-                {
-                    corePlugins = value;
-                }
+                lock (Mutex)
+                    _CorePlugins = value;
             }
         }
 
-        public IParseAnalyticsController AnalyticsController
+        IParseAnalyticsController _Controller;
+
+        public IParseAnalyticsController Controller
         {
             get
             {
-                lock (mutex)
-                {
-                    analyticsController = analyticsController ?? new ParseAnalyticsController(CorePlugins.CommandRunner);
-                    return analyticsController;
-                }
+                lock (Mutex)
+                    return _Controller = _Controller ?? new ParseAnalyticsController(CorePlugins.CommandRunner);
             }
             set
             {
-                lock (mutex)
-                {
-                    analyticsController = value;
-                }
+                lock (Mutex)
+                    _Controller = value;
             }
         }
     }

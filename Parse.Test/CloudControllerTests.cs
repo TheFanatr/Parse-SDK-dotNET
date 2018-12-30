@@ -34,8 +34,7 @@ namespace Parse.Test
             Tuple<HttpStatusCode, IDictionary<string, object>> response = new Tuple<HttpStatusCode, IDictionary<string, object>>(HttpStatusCode.Accepted, responseDict);
             Mock<IParseCommandRunner> mockRunner = CreateMockRunner(response);
 
-            ParseCloudCodeController controller = new ParseCloudCodeController(mockRunner.Object);
-            return controller.CallFunctionAsync<string>("someFunction", null, null, CancellationToken.None).ContinueWith(t =>
+            return new ParseCloudCodeController(mockRunner.Object).CallFunctionAsync<string>("someFunction", null, null, CancellationToken.None).ContinueWith(t =>
             {
                 Assert.IsFalse(t.IsFaulted);
                 Assert.IsFalse(t.IsCanceled);

@@ -79,7 +79,8 @@ namespace Parse.Internal.Utilities
         public static async Task TransferAsync(string originFilePath, string targetFilePath)
         {
             if (!String.IsNullOrWhiteSpace(originFilePath) && !String.IsNullOrWhiteSpace(targetFilePath) && new FileInfo(originFilePath) is FileInfo originFile && originFile.Exists && new FileInfo(targetFilePath) is FileInfo targetFile)
-                using (StreamWriter writer = targetFile.CreateText()) using (StreamReader reader = originFile.OpenText())
+                using (StreamWriter writer = targetFile.CreateText())
+                using (StreamReader reader = originFile.OpenText())
                     await writer.WriteAsync(await reader.ReadToEndAsync());
         }
     }

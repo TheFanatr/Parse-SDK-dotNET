@@ -62,7 +62,7 @@ namespace Parse.Push.Internal
                         else
                         {
                             var data = installationCoder.Encode(installation);
-                            return storage.Result.AddAsync(ParseInstallationKey, Json.Encode(data));
+                            return storage.Result.AddAsync(ParseInstallationKey, JsonProcessor.Encode(data));
                         }
                     }).Unwrap();
 
@@ -95,7 +95,7 @@ namespace Parse.Push.Internal
                         ParseInstallation installation = null;
                         if (installationDataString != null)
                         {
-                            var installationData = Json.Parse(installationDataString) as IDictionary<string, object>;
+                            var installationData = JsonProcessor.Parse(installationDataString) as IDictionary<string, object>;
                             installation = installationCoder.Decode(installationData);
 
                             fetchTask = Task.FromResult<object>(null);

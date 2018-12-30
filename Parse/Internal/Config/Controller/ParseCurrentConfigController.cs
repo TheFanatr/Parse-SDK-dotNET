@@ -1,94 +1,50 @@
-// Copyright (c) 2015-present, Parse, LLC.  All rights reserved.  This source code is licensed under the BSD-style license found in the LICENSE file in the root directory of this source tree.  An additional grant of patent rights can be found in the PATENTS file in the same directory.
-
-using System;
 using System.Threading.Tasks;
-using System.Threading;
-using System.Collections.Generic;
 using Parse.Common.Internal;
 
 namespace Parse.Core.Internal
 {
-    /// <summary>
-    /// Parse current config controller.
-    /// </summary>
     internal class ParseCurrentConfigController : IParseCurrentConfigController
     {
-        private const string CurrentConfigKey = "CurrentConfig";
+        const string Key = "CurrentConfig";
 
-        private readonly TaskQueue taskQueue;
-        private ParseConfig currentConfig;
+        TaskQueue OperationQueue { get; }
 
-        private IStorageController storageController;
+        ParseConfig CurrentConfig { get; set; }
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="Parse.Core.Internal.ParseCurrentConfigController"/> class.
-        /// </summary>
+        IStorageController StorageController { get; }
+
         public ParseCurrentConfigController(IStorageController storageController)
         {
-            this.storageController = storageController;
-
-            taskQueue = new TaskQueue();
+            StorageController = storageController;
+            OperationQueue = new TaskQueue { };
         }
 
-        public Task<ParseConfig> GetCurrentConfigAsync()
+        public Task<ParseConfig> GetCurrentConfigAsync() => OperationQueue.Enqueue(toAwait => toAwait.ContinueWith(_ =>
         {
-            return taskQueue.Enqueue(toAwait => toAwait.ContinueWith(_ =>
+            if (CurrentConfig is null)
             {
-                if (currentConfig == null)
+                return StorageController.LoadAsync().OnSuccess(t =>
                 {
-                    return storageController.LoadAsync().OnSuccess(t =>
-                    {
-                        object tmp;
-                        t.Result.TryGetValue(CurrentConfigKey, out tmp);
+                    t.Result.TryGetValue(Key, out object tmp);
+                    return CurrentConfig = tmp is string propertiesString ? new ParseConfig(ParseClient.DeserializeJsonString(propertiesString)) : new ParseConfig { };
+                });
+            }
 
-                        string propertiesString = tmp as string;
-                        if (propertiesString != null)
-                        {
-                            var dictionary = ParseClient.DeserializeJsonString(propertiesString);
-                            currentConfig = new ParseConfig(dictionary);
-                        }
-                        else
-                        {
-                            currentConfig = new ParseConfig();
-                        }
+            return Task.FromResult(CurrentConfig);
+        })).Unwrap();
 
-                        return currentConfig;
-                    });
-                }
-
-                return Task.FromResult(currentConfig);
-            }), CancellationToken.None).Unwrap();
-        }
-
-        public Task SetCurrentConfigAsync(ParseConfig config)
+        public Task SetCurrentConfigAsync(ParseConfig config) => OperationQueue.Enqueue(toAwait => toAwait.ContinueWith(_ =>
         {
-            return taskQueue.Enqueue(toAwait => toAwait.ContinueWith(_ =>
-            {
-                currentConfig = config;
+            CurrentConfig = config;
+            return StorageController.LoadAsync().OnSuccess(t => t.Result.AddAsync(Key, ParseClient.SerializeJsonString(((IJsonConvertible) config).ToJSON())));
+        }).Unwrap().Unwrap());
 
-                var jsonObject = ((IJsonConvertible) config).ToJSON();
-                var jsonString = ParseClient.SerializeJsonString(jsonObject);
-
-                return storageController.LoadAsync().OnSuccess(t => t.Result.AddAsync(CurrentConfigKey, jsonString));
-            }).Unwrap().Unwrap(), CancellationToken.None);
-        }
-
-        public Task ClearCurrentConfigAsync()
+        public Task ClearCurrentConfigAsync() => OperationQueue.Enqueue(toAwait => toAwait.ContinueWith(_ =>
         {
-            return taskQueue.Enqueue(toAwait => toAwait.ContinueWith(_ =>
-            {
-                currentConfig = null;
+            CurrentConfig = null;
+            return StorageController.LoadAsync().OnSuccess(t => t.Result.RemoveAsync(Key));
+        }).Unwrap().Unwrap());
 
-                return storageController.LoadAsync().OnSuccess(t => t.Result.RemoveAsync(CurrentConfigKey));
-            }).Unwrap().Unwrap(), CancellationToken.None);
-        }
-
-        public Task ClearCurrentConfigInMemoryAsync()
-        {
-            return taskQueue.Enqueue(toAwait => toAwait.ContinueWith(_ =>
-            {
-                currentConfig = null;
-            }), CancellationToken.None);
-        }
+        public Task ClearCurrentConfigInMemoryAsync() => OperationQueue.Enqueue(toAwait => toAwait.ContinueWith(_ => { CurrentConfig = null; }));
     }
 }

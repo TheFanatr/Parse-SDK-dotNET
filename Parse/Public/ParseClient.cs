@@ -266,7 +266,7 @@ namespace Parse
         /// <returns></returns>
         public static async Task ReflectStorageChangeAsync(string originalRelativePath) => await StorageManager.TransferAsync(StorageManager.GetWrapperForRelativePersistentStorageFilePath(originalRelativePath).FullName, StorageManager.PersistentStorageFilePath);
 
-        internal static string BuildQueryString(IDictionary<string, object> parameters) => String.Join("&", (from pair in parameters let valueString = pair.Value as string select $"{Uri.EscapeDataString(pair.Key)}={Uri.EscapeDataString(String.IsNullOrEmpty(valueString) ? Json.Encode(pair.Value) : valueString)}").ToArray());
+        internal static string BuildQueryString(IDictionary<string, object> parameters) => String.Join("&", (from pair in parameters let valueString = pair.Value as string select $"{Uri.EscapeDataString(pair.Key)}={Uri.EscapeDataString(String.IsNullOrEmpty(valueString) ? JsonProcessor.Encode(pair.Value) : valueString)}").ToArray());
 
         internal static IDictionary<string, string> DecodeQueryString(string queryString)
         {
@@ -279,8 +279,8 @@ namespace Parse
             return dict;
         }
 
-        internal static IDictionary<string, object> DeserializeJsonString(string jsonData) => Json.Parse(jsonData) as IDictionary<string, object>;
+        internal static IDictionary<string, object> DeserializeJsonString(string jsonData) => JsonProcessor.Parse(jsonData) as IDictionary<string, object>;
 
-        internal static string SerializeJsonString(IDictionary<string, object> jsonData) => Json.Encode(jsonData);
+        internal static string SerializeJsonString(IDictionary<string, object> jsonData) => JsonProcessor.Encode(jsonData);
     }
 }

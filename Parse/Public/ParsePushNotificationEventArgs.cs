@@ -16,7 +16,7 @@ namespace Parse
             Payload = payload;
 
 #if !IOS
-            StringPayload = Json.Encode(payload);
+            StringPayload = JsonProcessor.Encode(payload);
 #endif
         }
 
@@ -28,7 +28,7 @@ namespace Parse
         {
             StringPayload = stringPayload;
 
-            Payload = Json.Parse(stringPayload) as IDictionary<string, object>;
+            Payload = JsonProcessor.Parse(stringPayload) as IDictionary<string, object>;
         }
 #endif
 

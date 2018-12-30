@@ -21,8 +21,8 @@ namespace Parse.Test
             {
                 Thread.CurrentThread.CurrentCulture = c;
                 ParseGeoPoint point = new ParseGeoPoint(1.234, 1.234);
-                string serialized = Json.Encode(new Dictionary<string, object> { { "point", NoObjectsEncoder.Instance.Encode(point) } });
-                IDictionary<string, object> deserialized = ParseDecoder.Instance.Decode(Json.Parse(serialized)) as IDictionary<string, object>;
+                string serialized = JsonProcessor.Encode(new Dictionary<string, object> { { "point", NoObjectsEncoder.Instance.Encode(point) } });
+                IDictionary<string, object> deserialized = ParseDecoder.Instance.Decode(JsonProcessor.Parse(serialized)) as IDictionary<string, object>;
                 ParseGeoPoint pointAgain = (ParseGeoPoint) deserialized["point"];
                 Assert.AreEqual(1.234, pointAgain.Latitude);
                 Assert.AreEqual(1.234, pointAgain.Longitude);

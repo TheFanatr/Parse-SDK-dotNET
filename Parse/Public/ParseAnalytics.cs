@@ -22,7 +22,7 @@ namespace Parse
         {
             get
             {
-                return ParseAnalyticsPlugins.Instance.AnalyticsController;
+                return ParseAnalyticsPlugins.Instance.Controller;
             }
         }
 

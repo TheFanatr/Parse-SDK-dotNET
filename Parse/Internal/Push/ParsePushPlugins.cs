@@ -4,138 +4,115 @@ namespace Parse.Push.Internal
 {
     public class ParsePushPlugins : IParsePushPlugins
     {
-        private static readonly object instanceMutex = new object();
-        private static IParsePushPlugins instance;
+        static object InstanceMutex { get; } = new object { };
+
+        static IParsePushPlugins _Instance;
+
         public static IParsePushPlugins Instance
         {
             get
             {
-                instance = instance ?? new ParsePushPlugins();
-                return instance;
+                lock (InstanceMutex)
+                    return _Instance = _Instance ?? new ParsePushPlugins { };
             }
             set
             {
-                lock (instanceMutex)
-                {
-                    instance = value;
-                }
+                lock (InstanceMutex)
+                    _Instance = value;
             }
         }
 
-        private readonly object mutex = new object();
+        object Mutex { get; } = new object { };
 
-        private IParseCorePlugins corePlugins;
-        private IParsePushChannelsController pushChannelsController;
-        private IParsePushController pushController;
-        private IParseCurrentInstallationController currentInstallationController;
-        private IDeviceInfoController deviceInfoController;
+        IParseCorePlugins _CorePlugins;
+
+        public IParseCorePlugins CorePlugins
+        {
+            get
+            {
+                lock (Mutex)
+                    return _CorePlugins = _CorePlugins ?? ParseCorePlugins.Instance;
+            }
+            set
+            {
+                lock (Mutex)
+                    _CorePlugins = value;
+            }
+        }
+
+        IParsePushChannelsController _PushChannelsController;
+
+        public IParsePushChannelsController PushChannelsController
+        {
+            get
+            {
+                lock (Mutex)
+                    return _PushChannelsController = _PushChannelsController ?? new ParsePushChannelsController { };
+            }
+            set
+            {
+                lock (Mutex)
+                    _PushChannelsController = value;
+            }
+        }
+
+        IParsePushController _PushController;
+
+        public IParsePushController PushController
+        {
+            get
+            {
+                lock (Mutex)
+                    return _PushController = _PushController ?? new ParsePushController(CorePlugins.CommandRunner, CorePlugins.CurrentUserController);
+            }
+            set
+            {
+                lock (Mutex)
+                    _PushController = value;
+            }
+        }
+
+        IParseCurrentInstallationController _CurrentInstallationController;
+
+        public IParseCurrentInstallationController CurrentInstallationController
+        {
+            get
+            {
+                lock (Mutex)
+                    return _CurrentInstallationController = _CurrentInstallationController ?? new ParseCurrentInstallationController(CorePlugins.InstallationIdController, CorePlugins.StorageController, ParseInstallationCoder.Instance);
+            }
+            set
+            {
+                lock (Mutex)
+                    _CurrentInstallationController = value;
+            }
+        }
+
+        IDeviceInfoController _DeviceInfoController;
+
+        public IDeviceInfoController DeviceInfoController
+        {
+            get
+            {
+                lock (Mutex)
+                    return _DeviceInfoController = _DeviceInfoController ?? new DeviceInfoController { };
+            }
+            set
+            {
+                lock (Mutex)
+                    _DeviceInfoController = value;
+            }
+        }
 
         public void Reset()
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 CorePlugins = null;
                 PushChannelsController = null;
                 PushController = null;
                 CurrentInstallationController = null;
                 DeviceInfoController = null;
-            }
-        }
-
-        public IParseCorePlugins CorePlugins
-        {
-            get
-            {
-                lock (mutex)
-                {
-                    corePlugins = corePlugins ?? ParseCorePlugins.Instance;
-                    return corePlugins;
-                }
-            }
-            set
-            {
-                lock (mutex)
-                {
-                    corePlugins = value;
-                }
-            }
-        }
-
-        public IParsePushChannelsController PushChannelsController
-        {
-            get
-            {
-                lock (mutex)
-                {
-                    pushChannelsController = pushChannelsController ?? new ParsePushChannelsController();
-                    return pushChannelsController;
-                }
-            }
-            set
-            {
-                lock (mutex)
-                {
-                    pushChannelsController = value;
-                }
-            }
-        }
-
-        public IParsePushController PushController
-        {
-            get
-            {
-                lock (mutex)
-                {
-                    pushController = pushController ?? new ParsePushController(CorePlugins.CommandRunner, CorePlugins.CurrentUserController);
-                    return pushController;
-                }
-            }
-            set
-            {
-                lock (mutex)
-                {
-                    pushController = value;
-                }
-            }
-        }
-
-        public IParseCurrentInstallationController CurrentInstallationController
-        {
-            get
-            {
-                lock (mutex)
-                {
-                    currentInstallationController = currentInstallationController ?? new ParseCurrentInstallationController(
-                      CorePlugins.InstallationIdController, CorePlugins.StorageController, ParseInstallationCoder.Instance
-                    );
-                    return currentInstallationController;
-                }
-            }
-            set
-            {
-                lock (mutex)
-                {
-                    currentInstallationController = value;
-                }
-            }
-        }
-
-        public IDeviceInfoController DeviceInfoController
-        {
-            get
-            {
-                lock (mutex)
-                {
-                    deviceInfoController = deviceInfoController ?? new DeviceInfoController();
-                    return deviceInfoController;
-                }
-            }
-            set
-            {
-                lock (mutex)
-                {
-                    deviceInfoController = value;
-                }
             }
         }
     }

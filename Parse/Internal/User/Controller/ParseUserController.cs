@@ -1,6 +1,3 @@
-// Copyright (c) 2015-present, Parse, LLC.  All rights reserved.  This source code is licensed under the BSD-style license found in the LICENSE file in the root directory of this source tree.  An additional grant of patent rights can be found in the PATENTS file in the same directory.
-
-using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,104 +7,27 @@ namespace Parse.Core.Internal
 {
     public class ParseUserController : IParseUserController
     {
-        private readonly IParseCommandRunner commandRunner;
+        IParseCommandRunner CommandRunner { get; }
 
-        public ParseUserController(IParseCommandRunner commandRunner)
+        public ParseUserController(IParseCommandRunner commandRunner) => CommandRunner = commandRunner;
+
+        public Task<IObjectState> SignUpAsync(IObjectState state, IDictionary<string, IParseFieldOperation> operations, CancellationToken cancellationToken) => CommandRunner.RunCommandAsync(new ParseCommand("classes/_User", "POST", data: ParseObject.ToJSONObjectForSaving(operations)), cancellationToken: cancellationToken).OnSuccess(t => ParseObjectCoder.Instance.Decode(t.Result.Item2, ParseDecoder.Instance).MutatedClone(mutableClone => mutableClone.IsNew = true));
+
+        public Task<IObjectState> LogInAsync(string username, string password, CancellationToken cancellationToken)
         {
-            this.commandRunner = commandRunner;
-        }
-
-        public Task<IObjectState> SignUpAsync(IObjectState state,
-            IDictionary<string, IParseFieldOperation> operations,
-            CancellationToken cancellationToken)
-        {
-            var objectJSON = ParseObject.ToJSONObjectForSaving(operations);
-
-            var command = new ParseCommand("classes/_User",
-                method: "POST",
-                data: objectJSON);
-
-            return commandRunner.RunCommandAsync(command, cancellationToken: cancellationToken).OnSuccess(t =>
+            Dictionary<string, object> data = new Dictionary<string, object>
             {
-                var serverState = ParseObjectCoder.Instance.Decode(t.Result.Item2, ParseDecoder.Instance);
-                serverState = serverState.MutatedClone(mutableClone =>
-                {
-                    mutableClone.IsNew = true;
-                });
-                return serverState;
-            });
+                ["username"] = username,
+                ["password"] = password
+            };
+
+            return CommandRunner.RunCommandAsync(new ParseCommand($"login?{ParseClient.BuildQueryString(data)}", "GET", data: null), cancellationToken: cancellationToken).OnSuccess(t => ParseObjectCoder.Instance.Decode(t.Result.Item2, ParseDecoder.Instance).MutatedClone(mutableClone => mutableClone.IsNew = t.Result.Item1 == System.Net.HttpStatusCode.Created));
         }
 
-        public Task<IObjectState> LogInAsync(string username,
-            string password,
-            CancellationToken cancellationToken)
-        {
-            var data = new Dictionary<string, object>{
-        {"username", username},
-        {"password", password}
-      };
+        public Task<IObjectState> LogInAsync(string authType, IDictionary<string, object> data, CancellationToken cancellationToken) => CommandRunner.RunCommandAsync(new ParseCommand("users", "POST", data: new Dictionary<string, object> { ["authData"] = new Dictionary<string, object> { [authType] = data } }), cancellationToken: cancellationToken).OnSuccess(t => ParseObjectCoder.Instance.Decode(t.Result.Item2, ParseDecoder.Instance).MutatedClone(mutableClone => mutableClone.IsNew = t.Result.Item1 == System.Net.HttpStatusCode.Created));
 
-            var command = new ParseCommand(string.Format("login?{0}", ParseClient.BuildQueryString(data)),
-                method: "GET",
-                data: null);
+        public Task<IObjectState> GetUserAsync(string sessionToken, CancellationToken cancellationToken) => CommandRunner.RunCommandAsync(new ParseCommand("users/me", "GET", sessionToken, data: null), cancellationToken: cancellationToken).OnSuccess(t => ParseObjectCoder.Instance.Decode(t.Result.Item2, ParseDecoder.Instance));
 
-            return commandRunner.RunCommandAsync(command, cancellationToken: cancellationToken).OnSuccess(t =>
-            {
-                var serverState = ParseObjectCoder.Instance.Decode(t.Result.Item2, ParseDecoder.Instance);
-                serverState = serverState.MutatedClone(mutableClone =>
-                {
-                    mutableClone.IsNew = t.Result.Item1 == System.Net.HttpStatusCode.Created;
-                });
-                return serverState;
-            });
-        }
-
-        public Task<IObjectState> LogInAsync(string authType,
-            IDictionary<string, object> data,
-            CancellationToken cancellationToken)
-        {
-            var authData = new Dictionary<string, object>();
-            authData[authType] = data;
-
-            var command = new ParseCommand("users",
-                method: "POST",
-                data: new Dictionary<string, object> {
-            {"authData", authData}
-                });
-
-            return commandRunner.RunCommandAsync(command, cancellationToken: cancellationToken).OnSuccess(t =>
-            {
-                var serverState = ParseObjectCoder.Instance.Decode(t.Result.Item2, ParseDecoder.Instance);
-                serverState = serverState.MutatedClone(mutableClone =>
-                {
-                    mutableClone.IsNew = t.Result.Item1 == System.Net.HttpStatusCode.Created;
-                });
-                return serverState;
-            });
-        }
-
-        public Task<IObjectState> GetUserAsync(string sessionToken, CancellationToken cancellationToken)
-        {
-            var command = new ParseCommand("users/me",
-                method: "GET",
-                sessionToken: sessionToken,
-                data: null);
-
-            return commandRunner.RunCommandAsync(command, cancellationToken: cancellationToken).OnSuccess(t =>
-            {
-                return ParseObjectCoder.Instance.Decode(t.Result.Item2, ParseDecoder.Instance);
-            });
-        }
-
-        public Task RequestPasswordResetAsync(string email, CancellationToken cancellationToken)
-        {
-            var command = new ParseCommand("requestPasswordReset",
-                method: "POST",
-                data: new Dictionary<string, object> {
-            {"email", email}
-                });
-
-            return commandRunner.RunCommandAsync(command, cancellationToken: cancellationToken);
-        }
+        public Task RequestPasswordResetAsync(string email, CancellationToken cancellationToken) => CommandRunner.RunCommandAsync(new ParseCommand("requestPasswordReset", "POST", data: new Dictionary<string, object> { ["email"] = email }), cancellationToken: cancellationToken);
     }
 }

@@ -10,7 +10,7 @@ namespace Parse.Core.Internal
     {
         public static ParseDecoder Instance { get; } = new ParseDecoder { };
 
-        private ParseDecoder() { }
+        ParseDecoder() { }
 
         public object Decode(object data)
         {

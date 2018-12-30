@@ -1,65 +1,32 @@
-// Copyright (c) 2015-present, Parse, LLC.  All rights reserved.  This source code is licensed under the BSD-style license found in the LICENSE file in the root directory of this source tree.  An additional grant of patent rights can be found in the PATENTS file in the same directory.
-
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using Parse.Common.Internal;
-using Parse.Core.Internal;
 
 namespace Parse.Core.Internal
 {
     public class ParseCorePlugins : IParseCorePlugins
     {
-        private static readonly object instanceMutex = new object();
-        private static IParseCorePlugins instance;
+        static object InstanceMutex { get; } = new object { };
+
+        static IParseCorePlugins _Instance;
+
         public static IParseCorePlugins Instance
         {
             get
             {
-                lock (instanceMutex)
-                {
-                    return instance = instance ?? new ParseCorePlugins();
-                }
+                lock (InstanceMutex)
+                    return _Instance = _Instance ?? new ParseCorePlugins { };
             }
             set
             {
-                lock (instanceMutex)
-                {
-                    instance = value;
-                }
+                lock (InstanceMutex)
+                    _Instance = value;
             }
         }
 
-        private readonly object mutex = new object();
-
-        #region Server Controllers
-
-        private IHttpClient httpClient;
-        private IParseCommandRunner commandRunner;
-        private IStorageController storageController;
-
-        private IParseCloudCodeController cloudCodeController;
-        private IParseConfigController configController;
-        private IParseFileController fileController;
-        private IParseObjectController objectController;
-        private IParseQueryController queryController;
-        private IParseSessionController sessionController;
-        private IParseUserController userController;
-        private IObjectSubclassingController subclassingController;
-
-        #endregion
-
-        #region Current Instance Controller
-
-        private IParseCurrentUserController currentUserController;
-        private IInstallationIdController installationIdController;
-
-        #endregion
-
+        object Mutex { get; } = new object { };
+        
         public void Reset()
         {
-            lock (mutex)
+            lock (Mutex)
             {
                 HttpClient = null;
                 CommandRunner = null;
@@ -77,242 +44,218 @@ namespace Parse.Core.Internal
             }
         }
 
+        IHttpClient _HttpClient;
+
         public IHttpClient HttpClient
         {
             get
             {
-                lock (mutex)
-                {
-                    return httpClient = httpClient ?? new HttpClient();
-                }
+                lock (Mutex)
+                    return _HttpClient = _HttpClient ?? new HttpClient();
             }
             set
             {
-                lock (mutex)
-                {
-                    httpClient = value;
-                }
+                lock (Mutex)
+                    _HttpClient = value;
             }
         }
+
+        IParseCommandRunner _CommandRunner;
 
         public IParseCommandRunner CommandRunner
         {
             get
             {
-                lock (mutex)
-                {
-                    return commandRunner = commandRunner ?? new ParseCommandRunner(HttpClient, InstallationIdController);
-                }
+                lock (Mutex)
+                    return _CommandRunner = _CommandRunner ?? new ParseCommandRunner(HttpClient, InstallationIdController);
             }
             set
             {
-                lock (mutex)
-                {
-                    commandRunner = value;
-                }
+                lock (Mutex)
+                    _CommandRunner = value;
             }
         }
+
+        IStorageController _StorageController;
 
         public IStorageController StorageController
         {
             get
             {
-                lock (mutex)
-                {
-                    return storageController = storageController ?? new StorageController();
-                }
+                lock (Mutex)
+                    return _StorageController = _StorageController ?? new StorageController { };
             }
             set
             {
-                lock (mutex)
-                {
-                    storageController = value;
-                }
+                lock (Mutex)
+                    _StorageController = value;
             }
         }
+
+        IParseCloudCodeController _CloudCodeController;
 
         public IParseCloudCodeController CloudCodeController
         {
             get
             {
-                lock (mutex)
-                {
-                    return cloudCodeController = cloudCodeController ?? new ParseCloudCodeController(CommandRunner);
-                }
+                lock (Mutex)
+                    return _CloudCodeController = _CloudCodeController ?? new ParseCloudCodeController(CommandRunner);
             }
             set
             {
-                lock (mutex)
-                {
-                    cloudCodeController = value;
-                }
+                lock (Mutex)
+                    _CloudCodeController = value;
             }
         }
+
+        IParseConfigController _ConfigController;
 
         public IParseFileController FileController
         {
             get
             {
-                lock (mutex)
-                {
-                    return fileController = fileController ?? new ParseFileController(CommandRunner);
-                }
+                lock (Mutex)
+                    return _FileController = _FileController ?? new ParseFileController(CommandRunner);
             }
             set
             {
-                lock (mutex)
-                {
-                    fileController = value;
-                }
+                lock (Mutex)
+                    _FileController = value;
             }
         }
+
+        IParseFileController _FileController;
 
         public IParseConfigController ConfigController
         {
             get
             {
-                lock (mutex)
-                {
-                    return configController ?? (configController = new ParseConfigController(CommandRunner, StorageController));
-                }
+                lock (Mutex)
+                    return _ConfigController ?? (_ConfigController = new ParseConfigController(CommandRunner, StorageController));
             }
             set
             {
-                lock (mutex)
-                {
-                    configController = value;
-                }
+                lock (Mutex)
+                    _ConfigController = value;
             }
         }
+
+        IParseObjectController _ObjectController;
 
         public IParseObjectController ObjectController
         {
             get
             {
-                lock (mutex)
-                {
-                    return objectController = objectController ?? new ParseObjectController(CommandRunner);
-                }
+                lock (Mutex)
+                    return _ObjectController = _ObjectController ?? new ParseObjectController(CommandRunner);
             }
             set
             {
-                lock (mutex)
-                {
-                    objectController = value;
-                }
+                lock (Mutex)
+                    _ObjectController = value;
             }
         }
+
+        IParseQueryController _QueryController;
 
         public IParseQueryController QueryController
         {
             get
             {
-                lock (mutex)
-                {
-                    return queryController ?? (queryController = new ParseQueryController(CommandRunner));
-                }
+                lock (Mutex)
+                    return _QueryController ?? (_QueryController = new ParseQueryController(CommandRunner));
             }
             set
             {
-                lock (mutex)
-                {
-                    queryController = value;
-                }
+                lock (Mutex)
+                    _QueryController = value;
             }
         }
+
+        IParseSessionController _SessionController;
 
         public IParseSessionController SessionController
         {
             get
             {
-                lock (mutex)
-                {
-                    return sessionController = sessionController ?? new ParseSessionController(CommandRunner);
-                }
+                lock (Mutex)
+                    return _SessionController = _SessionController ?? new ParseSessionController(CommandRunner);
             }
             set
             {
-                lock (mutex)
-                {
-                    sessionController = value;
-                }
+                lock (Mutex)
+                    _SessionController = value;
             }
         }
+
+        IParseUserController _UserController;
 
         public IParseUserController UserController
         {
             get
             {
-                lock (mutex)
-                {
-                    return (userController = userController ?? new ParseUserController(CommandRunner));
-                }
+                lock (Mutex)
+                    return _UserController = _UserController ?? new ParseUserController(CommandRunner);
             }
             set
             {
-                lock (mutex)
-                {
-                    userController = value;
-                }
+                lock (Mutex)
+                    _UserController = value;
             }
         }
 
+        IObjectSubclassingController _SubclassingController;
+        
         public IParseCurrentUserController CurrentUserController
         {
             get
             {
-                lock (mutex)
-                {
-                    return currentUserController = currentUserController ?? new ParseCurrentUserController(StorageController);
-                }
+                lock (Mutex)
+                    return _CurrentUserController = _CurrentUserController ?? new ParseCurrentUserController(StorageController);
             }
             set
             {
-                lock (mutex)
-                {
-                    currentUserController = value;
-                }
+                lock (Mutex)
+                    _CurrentUserController = value;
             }
         }
+
+        IParseCurrentUserController _CurrentUserController;
 
         public IObjectSubclassingController SubclassingController
         {
             get
             {
-                lock (mutex)
+                lock (Mutex)
                 {
-                    if (subclassingController == null)
+                    if (_SubclassingController == null)
                     {
-                        subclassingController = new ObjectSubclassingController();
-                        subclassingController.AddRegisterHook(typeof(ParseUser), () => CurrentUserController.ClearFromMemory());
+                        _SubclassingController = new ObjectSubclassingController();
+                        _SubclassingController.AddRegisterHook(typeof(ParseUser), () => CurrentUserController.ClearFromMemory());
                     }
-                    return subclassingController;
+                    return _SubclassingController;
                 }
             }
             set
             {
-                lock (mutex)
-                {
-                    subclassingController = value;
-                }
+                lock (Mutex)
+                    _SubclassingController = value;
             }
         }
+
+        IInstallationIdController _InstallationIdController;
 
         public IInstallationIdController InstallationIdController
         {
             get
             {
-                lock (mutex)
-                {
-                    return installationIdController = installationIdController ?? new InstallationIdController(StorageController);
-                }
+                lock (Mutex)
+                    return _InstallationIdController = _InstallationIdController ?? new InstallationIdController(StorageController);
             }
             set
             {
-                lock (mutex)
-                {
-                    installationIdController = value;
-                }
+                lock (Mutex)
+                    _InstallationIdController = value;
             }
         }
     }

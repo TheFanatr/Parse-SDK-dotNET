@@ -39,6 +39,7 @@ namespace Parse.Core.Internal
         public void Apply(IObjectState other)
         {
             IsNew = other.IsNew;
+
             if (other.ObjectId != null)
                 ObjectId = other.ObjectId;
             if (other.UpdatedAt != null)

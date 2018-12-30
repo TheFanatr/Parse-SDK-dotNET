@@ -11,60 +11,33 @@ namespace Parse.Core.Internal
 {
     public class ParseRemoveOperation : IParseFieldOperation
     {
-        private ReadOnlyCollection<object> objects;
-        public ParseRemoveOperation(IEnumerable<object> objects)
-        {
-            this.objects = new ReadOnlyCollection<object>(objects.Distinct().ToList());
-        }
+        public ParseRemoveOperation(IEnumerable<object> objects) => Objects = new ReadOnlyCollection<object>(objects.Distinct().ToList());
 
-        public object Encode()
+        public object Encode() => new Dictionary<string, object>
         {
-            return new Dictionary<string, object> {
-        {"__op", "Remove"},
-        {"objects", PointerOrLocalIdEncoder.Instance.Encode(objects)}
-      };
-        }
+            ["__op"] = "Remove",
+            ["objects"] = PointerOrLocalIdEncoder.Instance.Encode(Objects)
+        };
 
         public IParseFieldOperation MergeWithPrevious(IParseFieldOperation previous)
         {
-            if (previous == null)
+            switch (previous)
             {
-                return this;
+                case null:
+                    return this;
+                case ParseDeleteOperation _:
+                    return previous;
+                case ParseSetOperation setOp:
+                    return new ParseSetOperation(Apply(ConversionHelpers.DowncastReference<IList<object>>(setOp.Value), null));
+                case ParseRemoveOperation oldOp:
+                    return new ParseRemoveOperation(oldOp.Objects.Concat(Objects));
+                default:
+                    throw new InvalidOperationException("Operation is invalid after previous operation.");
             }
-            if (previous is ParseDeleteOperation)
-            {
-                return previous;
-            }
-            if (previous is ParseSetOperation)
-            {
-                var setOp = (ParseSetOperation) previous;
-                var oldList = ConversionHelpers.DowncastReference<IList<object>>(setOp.Value);
-                return new ParseSetOperation(this.Apply(oldList, null));
-            }
-            if (previous is ParseRemoveOperation)
-            {
-                var oldOp = (ParseRemoveOperation) previous;
-                return new ParseRemoveOperation(oldOp.Objects.Concat(objects));
-            }
-            throw new InvalidOperationException("Operation is invalid after previous operation.");
         }
 
-        public object Apply(object oldValue, string key)
-        {
-            if (oldValue == null)
-            {
-                return new List<object>();
-            }
-            var oldList = ConversionHelpers.DowncastReference<IList<object>>(oldValue);
-            return oldList.Except(objects, ParseFieldOperations.ParseObjectComparer).ToList();
-        }
+        public object Apply(object oldValue, string key) => oldValue is null ? new List<object> { } : ConversionHelpers.DowncastReference<IList<object>>(oldValue).Except(Objects, ParseFieldOperations.ParseObjectComparer).ToList();
 
-        public IEnumerable<object> Objects
-        {
-            get
-            {
-                return objects;
-            }
-        }
+        public IEnumerable<object> Objects { get; }
     }
 }

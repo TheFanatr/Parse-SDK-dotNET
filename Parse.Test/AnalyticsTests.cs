@@ -31,7 +31,7 @@ namespace Parse.Test
 
             ParseAnalyticsPlugins.Instance = new ParseAnalyticsPlugins
             {
-                AnalyticsController = mockController.Object,
+                Controller = mockController.Object,
                 CorePlugins = mockCorePlugins.Object
             };
 
@@ -57,7 +57,7 @@ namespace Parse.Test
 
             ParseAnalyticsPlugins.Instance = new ParseAnalyticsPlugins
             {
-                AnalyticsController = mockController.Object,
+                Controller = mockController.Object,
                 CorePlugins = mockCorePlugins.Object
             };
 
@@ -83,7 +83,7 @@ namespace Parse.Test
 
             ParseAnalyticsPlugins.Instance = new ParseAnalyticsPlugins
             {
-                AnalyticsController = mockController.Object,
+                Controller = mockController.Object,
                 CorePlugins = mockCorePlugins.Object
             };
 
