@@ -1,129 +1,60 @@
-// Copyright (c) 2015-present, Parse, LLC.  All rights reserved.  This source code is licensed under the BSD-style license found in the LICENSE file in the root directory of this source tree.  An additional grant of patent rights can be found in the PATENTS file in the same directory.
-
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Parse.Utilities;
 
 namespace Parse.Common.Internal
 {
-    /// <summary>
-    /// Provides a Dictionary implementation that can delegate to any other
-    /// dictionary, regardless of its value type. Used for coercion of
-    /// dictionaries when returning them to users.
-    /// </summary>
-    /// <typeparam name="TOut">The resulting type of value in the dictionary.</typeparam>
-    /// <typeparam name="TIn">The original type of value in the dictionary.</typeparam>
     [Preserve(AllMembers = true, Conditional = false)]
     public class FlexibleDictionaryWrapper<TOut, TIn> : IDictionary<string, TOut>
     {
-        private readonly IDictionary<string, TIn> toWrap;
-        public FlexibleDictionaryWrapper(IDictionary<string, TIn> toWrap)
-        {
-            this.toWrap = toWrap;
-        }
+        IDictionary<string, TIn> Target { get; }
 
-        public void Add(string key, TOut value)
-        {
-            toWrap.Add(key, (TIn) ConversionHelpers.Downcast<TIn>(value));
-        }
+        public FlexibleDictionaryWrapper(IDictionary<string, TIn> toWrap) => this.Target = toWrap;
 
-        public bool ContainsKey(string key)
-        {
-            return toWrap.ContainsKey(key);
-        }
+        public void Add(string key, TOut value) => Target.Add(key, (TIn) ConversionHelpers.Downcast<TIn>(value));
 
-        public ICollection<string> Keys
-        {
-            get { return toWrap.Keys; }
-        }
+        public bool ContainsKey(string key) => Target.ContainsKey(key);
 
-        public bool Remove(string key)
-        {
-            return toWrap.Remove(key);
-        }
+        public ICollection<string> Keys => Target.Keys;
+
+        public bool Remove(string key) => Target.Remove(key);
 
         public bool TryGetValue(string key, out TOut value)
         {
-            TIn outValue;
-            bool result = toWrap.TryGetValue(key, out outValue);
+            bool result = Target.TryGetValue(key, out TIn outValue);
             value = (TOut) ConversionHelpers.Downcast<TOut>(outValue);
             return result;
         }
 
-        public ICollection<TOut> Values
-        {
-            get
-            {
-                return toWrap.Values
-                    .Select(item => (TOut) ConversionHelpers.Downcast<TOut>(item)).ToList();
-            }
-        }
+        public ICollection<TOut> Values => Target.Values.Select(item => (TOut) ConversionHelpers.Downcast<TOut>(item)).ToList();
 
         public TOut this[string key]
         {
-            get
-            {
-                return (TOut) ConversionHelpers.Downcast<TOut>(toWrap[key]);
-            }
-            set
-            {
-                toWrap[key] = (TIn) ConversionHelpers.Downcast<TIn>(value);
-            }
+            get => (TOut) ConversionHelpers.Downcast<TOut>(Target[key]);
+            set => Target[key] = (TIn) ConversionHelpers.Downcast<TIn>(value);
         }
 
-        public void Add(KeyValuePair<string, TOut> item)
-        {
-            toWrap.Add(new KeyValuePair<string, TIn>(item.Key,
-                (TIn) ConversionHelpers.Downcast<TIn>(item.Value)));
-        }
+        public void Add(KeyValuePair<string, TOut> item) => Target.Add(new KeyValuePair<string, TIn>(item.Key, (TIn) ConversionHelpers.Downcast<TIn>(item.Value)));
 
-        public void Clear()
-        {
-            toWrap.Clear();
-        }
+        public void Clear() => Target.Clear();
 
-        public bool Contains(KeyValuePair<string, TOut> item)
-        {
-            return toWrap.Contains(new KeyValuePair<string, TIn>(item.Key,
-                (TIn) ConversionHelpers.Downcast<TIn>(item.Value)));
-        }
+        public bool Contains(KeyValuePair<string, TOut> item) => Target.Contains(new KeyValuePair<string, TIn>(item.Key, (TIn) ConversionHelpers.Downcast<TIn>(item.Value)));
 
-        public void CopyTo(KeyValuePair<string, TOut>[] array, int arrayIndex)
-        {
-            var converted = from pair in toWrap
-                            select new KeyValuePair<string, TOut>(pair.Key,
-                                (TOut) ConversionHelpers.Downcast<TOut>(pair.Value));
-            converted.ToList().CopyTo(array, arrayIndex);
-        }
+        public void CopyTo(KeyValuePair<string, TOut>[] array, int arrayIndex) => (from pair in Target select new KeyValuePair<string, TOut>(pair.Key, (TOut) ConversionHelpers.Downcast<TOut>(pair.Value))).ToList().CopyTo(array, arrayIndex);
 
-        public int Count
-        {
-            get { return toWrap.Count; }
-        }
+        public int Count => Target.Count;
 
-        public bool IsReadOnly
-        {
-            get { return toWrap.IsReadOnly; }
-        }
+        public bool IsReadOnly => Target.IsReadOnly;
 
-        public bool Remove(KeyValuePair<string, TOut> item)
-        {
-            return toWrap.Remove(new KeyValuePair<string, TIn>(item.Key,
-                (TIn) ConversionHelpers.Downcast<TIn>(item.Value)));
-        }
+        public bool Remove(KeyValuePair<string, TOut> item) => Target.Remove(new KeyValuePair<string, TIn>(item.Key, (TIn) ConversionHelpers.Downcast<TIn>(item.Value)));
 
         public IEnumerator<KeyValuePair<string, TOut>> GetEnumerator()
         {
-            foreach (var pair in toWrap)
-            {
-                yield return new KeyValuePair<string, TOut>(pair.Key,
-                    (TOut) ConversionHelpers.Downcast<TOut>(pair.Value));
-            }
+            foreach (KeyValuePair<string, TIn> pair in Target)
+                yield return new KeyValuePair<string, TOut>(pair.Key, (TOut) ConversionHelpers.Downcast<TOut>(pair.Value));
         }
 
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
-        {
-            return this.GetEnumerator();
-        }
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

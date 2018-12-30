@@ -1,5 +1,3 @@
-// Copyright (c) 2015-present, Parse, LLC.  All rights reserved.  This source code is licensed under the BSD-style license found in the LICENSE file in the root directory of this source tree.  An additional grant of patent rights can be found in the PATENTS file in the same directory.
-
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -10,82 +8,57 @@ namespace Parse.Core.Internal
 {
     public class ParseAddUniqueOperation : IParseFieldOperation
     {
-        private ReadOnlyCollection<object> objects;
-        public ParseAddUniqueOperation(IEnumerable<object> objects)
-        {
-            this.objects = new ReadOnlyCollection<object>(objects.Distinct().ToList());
-        }
+        public ParseAddUniqueOperation(IEnumerable<object> objects) => Queue = new ReadOnlyCollection<object>(objects.Distinct().ToList());
 
-        public object Encode()
+        public object Encode() => new Dictionary<string, object>
         {
-            return new Dictionary<string, object> {
-        {"__op", "AddUnique"},
-        {"objects", PointerOrLocalIdEncoder.Instance.Encode(objects)}
-      };
-        }
+            ["__op"] = "AddUnique",
+            ["objects"] = PointerOrLocalIdEncoder.Instance.Encode(Queue)
+        };
 
         public IParseFieldOperation MergeWithPrevious(IParseFieldOperation previous)
         {
-            if (previous == null)
+            switch (previous)
             {
-                return this;
+                case null:
+                    return this;
+                case ParseDeleteOperation _:
+                    return new ParseSetOperation(Queue.ToList());
+                case ParseSetOperation setOp:
+                    IList<object> oldList = ConversionHelpers.DowncastValue<IList<object>>(setOp.Value);
+                    object result = Apply(oldList, null);
+                    return new ParseSetOperation(result);
+                case ParseAddUniqueOperation _:
+                    return new ParseAddUniqueOperation((IList<object>) Apply(((ParseAddUniqueOperation) previous).Queue, null));
+                default:
+                    throw new InvalidOperationException("Operation is invalid after previous operation.");
             }
-            if (previous is ParseDeleteOperation)
-            {
-                return new ParseSetOperation(objects.ToList());
-            }
-            if (previous is ParseSetOperation)
-            {
-                var setOp = (ParseSetOperation) previous;
-                var oldList = ConversionHelpers.DowncastValue<IList<object>>(setOp.Value);
-                var result = this.Apply(oldList, null);
-                return new ParseSetOperation(result);
-            }
-            if (previous is ParseAddUniqueOperation)
-            {
-                var oldList = ((ParseAddUniqueOperation) previous).Objects;
-                return new ParseAddUniqueOperation((IList<object>) this.Apply(oldList, null));
-            }
-            throw new InvalidOperationException("Operation is invalid after previous operation.");
         }
 
         public object Apply(object oldValue, string key)
         {
-            if (oldValue == null)
-            {
-                return objects.ToList();
-            }
-            var newList = ConversionHelpers.DowncastValue<IList<object>>(oldValue).ToList();
-            var comparer = ParseFieldOperations.ParseObjectComparer;
-            foreach (var objToAdd in objects)
+            if (oldValue is null)
+                return Queue.ToList();
+            
+            List<object> newList = ConversionHelpers.DowncastValue<IList<object>>(oldValue).ToList();
+            IEqualityComparer<object> comparer = ParseFieldOperations.ParseObjectComparer;
+
+            foreach (object objToAdd in Queue)
             {
                 if (objToAdd is ParseObject)
                 {
-                    var matchedObj = newList.FirstOrDefault(listObj => comparer.Equals(objToAdd, listObj));
-                    if (matchedObj == null)
-                    {
-                        newList.Add(objToAdd);
-                    }
+                    if (newList.FirstOrDefault(listObj => comparer.Equals(objToAdd, listObj)) is object matchedObj)
+                        newList[newList.IndexOf(matchedObj)] = objToAdd;
                     else
-                    {
-                        var index = newList.IndexOf(matchedObj);
-                        newList[index] = objToAdd;
-                    }
+                        newList.Add(objToAdd);
                 }
-                else if (!newList.Contains<object>(objToAdd, comparer))
-                {
+                else if (!newList.Contains(objToAdd, comparer))
                     newList.Add(objToAdd);
-                }
             }
+
             return newList;
         }
 
-        public IEnumerable<object> Objects
-        {
-            get
-            {
-                return objects;
-            }
-        }
+        public IEnumerable<object> Queue { get; }
     }
 }

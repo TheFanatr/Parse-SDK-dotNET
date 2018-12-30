@@ -7,96 +7,45 @@ using Parse.Utilities;
 
 namespace Parse.Common.Internal
 {
-    /// <summary>
-    /// Provides a List implementation that can delegate to any other
-    /// list, regardless of its value type. Used for coercion of
-    /// lists when returning them to users.
-    /// </summary>
-    /// <typeparam name="TOut">The resulting type of value in the list.</typeparam>
-    /// <typeparam name="TIn">The original type of value in the list.</typeparam>
     [Preserve(AllMembers = true, Conditional = false)]
     public class FlexibleListWrapper<TOut, TIn> : IList<TOut>
     {
-        private IList<TIn> toWrap;
-        public FlexibleListWrapper(IList<TIn> toWrap)
-        {
-            this.toWrap = toWrap;
-        }
+        IList<TIn> Target { get; }
 
-        public int IndexOf(TOut item)
-        {
-            return toWrap.IndexOf((TIn) ConversionHelpers.Downcast<TIn>(item));
-        }
+        public FlexibleListWrapper(IList<TIn> toWrap) => Target = toWrap;
 
-        public void Insert(int index, TOut item)
-        {
-            toWrap.Insert(index, (TIn) ConversionHelpers.Downcast<TIn>(item));
-        }
+        public int IndexOf(TOut item) => Target.IndexOf((TIn) ConversionHelpers.Downcast<TIn>(item));
 
-        public void RemoveAt(int index)
-        {
-            toWrap.RemoveAt(index);
-        }
+        public void Insert(int index, TOut item) => Target.Insert(index, (TIn) ConversionHelpers.Downcast<TIn>(item));
+
+        public void RemoveAt(int index) => Target.RemoveAt(index);
 
         public TOut this[int index]
         {
-            get
-            {
-                return (TOut) ConversionHelpers.Downcast<TOut>(toWrap[index]);
-            }
-            set
-            {
-                toWrap[index] = (TIn) ConversionHelpers.Downcast<TIn>(value);
-            }
+            get => (TOut) ConversionHelpers.Downcast<TOut>(Target[index]);
+            set => Target[index] = (TIn) ConversionHelpers.Downcast<TIn>(value);
         }
 
-        public void Add(TOut item)
-        {
-            toWrap.Add((TIn) ConversionHelpers.Downcast<TIn>(item));
-        }
+        public void Add(TOut item) => Target.Add((TIn) ConversionHelpers.Downcast<TIn>(item));
 
-        public void Clear()
-        {
-            toWrap.Clear();
-        }
+        public void Clear() => Target.Clear();
 
-        public bool Contains(TOut item)
-        {
-            return toWrap.Contains((TIn) ConversionHelpers.Downcast<TIn>(item));
-        }
+        public bool Contains(TOut item) => Target.Contains((TIn) ConversionHelpers.Downcast<TIn>(item));
 
-        public void CopyTo(TOut[] array, int arrayIndex)
-        {
-            toWrap.Select(item => (TOut) ConversionHelpers.Downcast<TOut>(item))
-                .ToList().CopyTo(array, arrayIndex);
-        }
+        public void CopyTo(TOut[] array, int arrayIndex) => Target.Select(item => (TOut) ConversionHelpers.Downcast<TOut>(item)).ToList().CopyTo(array, arrayIndex);
 
-        public int Count
-        {
-            get { return toWrap.Count; }
-        }
+        public int Count => Target.Count;
 
-        public bool IsReadOnly
-        {
-            get { return toWrap.IsReadOnly; }
-        }
+        public bool IsReadOnly => Target.IsReadOnly;
 
-        public bool Remove(TOut item)
-        {
-            return toWrap.Remove((TIn) ConversionHelpers.Downcast<TIn>(item));
-        }
+        public bool Remove(TOut item) => Target.Remove((TIn) ConversionHelpers.Downcast<TIn>(item));
 
         public IEnumerator<TOut> GetEnumerator()
         {
-            foreach (var item in (IEnumerable) toWrap)
-            {
+            foreach (object item in (IEnumerable) Target)
                 yield return (TOut) ConversionHelpers.Downcast<TOut>(item);
-            }
         }
 
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
-        {
-            return this.GetEnumerator();
-        }
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

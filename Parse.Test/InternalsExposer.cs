@@ -3,6 +3,7 @@
 namespace System.Runtime.CompilerServices
 {
     [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
+    [CompilerGlobalScope]
     public class IgnoresAccessChecksToAttribute : Attribute
     {
         public string AssemblyName { get; }

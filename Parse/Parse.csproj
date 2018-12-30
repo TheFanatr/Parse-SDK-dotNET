@@ -4,9 +4,9 @@
     <PropertyGroup>
         <Version>2.0.0</Version>
         <TargetFramework>netstandard2.0</TargetFramework>
-        <DocumentationFile>bin\Release\netstandard2.0\Parse.xml</DocumentationFile>
+        <!--<DocumentationFile>bin\Release\netstandard2.0\Parse.xml</DocumentationFile>-->
         <LangVersion>latest</LangVersion>
-        <Version Condition="$([MSBuild]::ValueOrDefault($(IsPrerelease), true))">$(Version)-$([MSBuild]::ValueOrDefault("$(PrereleaseType)", "develop"))-$([System.DateTime]::UtcNow.ToString("yyyy MM dd HH mm ss").Replace(" ", ""))</Version>
+        <Version Condition="$([MSBuild]::ValueOrDefault($(IsPrerelease), true))">$(Version)-$([MSBuild]::ValueOrDefault("$(PrereleaseType)", "develop"))-$([System.DateTime]::UtcNow.ToString("yyyy MM dd HH mm").Replace(" ", ""))$([MSBuild]::Divide($([System.DateTime]::UtcNow.Second), 6).ToString("00"))</Version>
         
         <Authors>Parse</Authors>
         <PackageProjectUrl>https://parseplatform.org/</PackageProjectUrl>
